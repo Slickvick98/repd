@@ -16,6 +16,7 @@ var timer = { id: null, left: 0 };
 var charts = {};
 var viewWorkout = null;        // index into D.workouts for detail view
 var workoutBackView = 'history'; // where the detail view returns to
+var logMode = 'menu';          // Log tab sub-screen: menu | program | template
 
 /* ---------- utilities ---------- */
 function $(id) { return document.getElementById(id); }
@@ -124,7 +125,9 @@ function pushWorkout(workout) {
     return ghPut(cfg.jsonPath, JSON.stringify(D, null, 2), msg, sha);
   }).then(function () {
     var fname = cfg.logsDir.replace(/\/$/, '') + '/' + dayStr(workout.date) + '-' + workout.name.toLowerCase() + '.md';
-    return ghPut(fname, sessionMarkdown(workout), 'log: ' + workout.name + ' ' + dayStr(workout.date));
+    return ghGet(fname).then(function (r) {
+      return ghPut(fname, sessionMarkdown(workout), 'log: ' + workout.name + ' ' + dayStr(workout.date), r ? r.sha : null);
+    });
   }).then(function () {
     setSync('ok', 'Synced \u00b7 ' + new Date().toLocaleTimeString());
     toast('Saved + committed to Git');
@@ -132,6 +135,17 @@ function pushWorkout(workout) {
     setSync('err', 'Save failed: ' + e.message);
     toast('Git save failed (kept local). See Settings.');
   });
+}
+
+/* Push just the rolling JSON (templates, edits to data) without a markdown log. */
+function syncDataJson(message) {
+  cacheData();
+  if (!gitConfigured()) { return Promise.resolve(); }
+  setSync('busy', 'Saving…');
+  return ghGet(cfg.jsonPath).then(function (r) {
+    return ghPut(cfg.jsonPath, JSON.stringify(D, null, 2), message, r ? r.sha : null);
+  }).then(function () { setSync('ok', 'Synced · ' + new Date().toLocaleTimeString()); })
+    .catch(function (e) { setSync('err', 'Save failed: ' + e.message); });
 }
 
 /* ---------- Obsidian Dataview-compatible session markdown ---------- */
@@ -178,6 +192,7 @@ function mergeSeed(remote) {
   if (!remote.prs) remote.prs = {};
   if (!remote.bodyweight) remote.bodyweight = [];
   if (!remote.splits) remote.splits = [];
+  if (!remote.templates) remote.templates = [];
   if (!remote.routines || !remote.routines.length) {
     remote.routines = (D && D.routines) ? D.routines : [];
     remote.program = (D && D.program) ? D.program : remote.program;
@@ -185,13 +200,20 @@ function mergeSeed(remote) {
   return remote;
 }
 
+function ensureData() {
+  if (!D.workouts) D.workouts = [];
+  if (!D.prs) D.prs = {};
+  if (!D.bodyweight) D.bodyweight = [];
+  if (!D.splits) D.splits = [];
+  if (!D.templates) D.templates = [];
+}
 function bootData() {
   // start from cache if present, else seed file
   var cached = null;
   try { cached = JSON.parse(localStorage.getItem(DATA_KEY)); } catch (e) {}
-  if (cached) { D = cached; return Promise.resolve(); }
+  if (cached) { D = cached; ensureData(); return Promise.resolve(); }
   return fetch('data/seed.json').then(function (r) { return r.json(); }).then(function (seed) {
-    D = seed; cacheData();
+    D = seed; ensureData(); cacheData();
   });
 }
 
@@ -346,7 +368,7 @@ function viewHtml() {
   if (active) return logActiveHtml();
   if (view === 'dash') return dashHtml();
   if (view === 'workout') return workoutHtml();
-  if (view === 'log') return logPickerHtml();
+  if (view === 'log') return logHtml();
   if (view === 'history') return historyHtml();
   if (view === 'body') return bodyHtml();
   if (view === 'progress') return progressHtml();
@@ -437,7 +459,8 @@ function workoutHtml() {
   var w = D.workouts[viewWorkout];
   if (!w) return emptyState('Not found', 'That session is unavailable.');
   var h = '';
-  h += '<div class="card"><button class="btn ghost sm" onclick="go(\'' + workoutBackView + '\')" style="margin-bottom:12px">\u2190 Back</button>';
+  h += '<div class="card"><div class="row" style="margin-bottom:12px"><button class="btn ghost sm" onclick="go(\'' + workoutBackView + '\')">\u2190 Back</button>' +
+    '<button class="btn sm" onclick="startEdit(' + viewWorkout + ')">Edit</button></div>';
   h += '<div class="row"><div><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:24px">' + esc(w.name) + '</div>' +
     '<div class="muted" style="font-size:13px;margin-top:2px">' + niceDate(w.date) + ' \u00b7 Block ' + (w.block || '?') + ' \u00b7 ' + totalVolume(w).toLocaleString() + ' lb vol</div></div>' +
     '<span class="pill accent">' + w.exercises.length + ' ex</span></div>';
@@ -469,9 +492,39 @@ function workoutHtml() {
   return h;
 }
 
+/* ---------- Log: chooser ---------- */
+function logHtml() {
+  if (logMode === 'program') return logPickerHtml();
+  if (logMode === 'template') return logTemplatesHtml();
+  return logMenuHtml();
+}
+function setLogMode(m) { logMode = m; render(); window.scrollTo(0, 0); }
+function logMenuHtml() {
+  var nT = (D.templates || []).length;
+  var h = '<div class="card"><h2>Start a workout</h2>';
+  h += '<button class="btn" onclick="setLogMode(\'program\')">From program</button>';
+  h += '<button class="btn ghost" style="margin-top:8px" onclick="startBlank()">From scratch</button>';
+  h += '<button class="btn ghost" style="margin-top:8px" onclick="setLogMode(\'template\')">From template' + (nT ? ' (' + nT + ')' : '') + '</button>';
+  h += '</div>';
+  return h;
+}
+function logTemplatesHtml() {
+  var t = D.templates || [];
+  var h = '<div class="card"><button class="btn ghost sm" onclick="setLogMode(\'menu\')" style="margin-bottom:10px">← Back</button><h2>Templates</h2>';
+  if (!t.length) h += '<div class="muted" style="font-size:13px;line-height:1.5">No templates yet. Start any workout and tap “Save as template” to reuse it later.</div>';
+  h += '</div>';
+  t.forEach(function (tpl) {
+    h += '<div class="ex"><div class="row" style="align-items:flex-start"><div style="flex:1"><div class="name">' + esc(tpl.name) + '</div>' +
+      '<div class="scheme">' + tpl.exercises.length + ' exercises</div></div>' +
+      '<button class="exbtn del" onclick="deleteTemplate(\'' + tpl.id + '\')">✕</button></div>' +
+      '<button class="btn sm" style="margin-top:10px;width:100%" onclick="startTemplate(\'' + tpl.id + '\')">Start this</button></div>';
+  });
+  return h;
+}
+
 /* ---------- Log: routine picker ---------- */
 function logPickerHtml() {
-  var h = '<div class="card"><h2>Pick a day</h2>';
+  var h = '<div class="card"><button class="btn ghost sm" onclick="setLogMode(\'menu\')" style="margin-bottom:10px">← Back</button><h2>Pick a day</h2>';
   h += '<div class="blocknav">';
   [1, 2, 3].forEach(function (b) {
     h += '<button class="' + (blockTab === b ? 'on' : '') + '" onclick="setBlock(' + b + ')">Block ' + b + '</button>';
@@ -500,26 +553,76 @@ function logPickerHtml() {
 function setBlock(b) { blockTab = b; render(); }
 
 /* ---------- Log: active workout ---------- */
-function startWorkout(rid) {
-  var r = D.routines.filter(function (x) { return x.id === rid; })[0];
-  if (!r) return;
+function makeActive(name, block, exList) {
   active = {
-    id: uid(), date: todayISO(), routineId: r.id, name: r.name, block: r.block,
-    week: '', bodyweight: '', sleep: '', energy: '', notes: '',
-    exercises: r.exercises.map(function (e) {
-      var sets = [];
-      for (var i = 0; i < e.sets; i++) sets.push({ weight: '', reps: '', rpe: (e.rpe || '').split('-')[0], done: false });
-      return {
-        name: e.name, superset: e.superset || null, rest: e.rest || 60,
-        scheme: e.sets + ' x ' + e.reps + ' @ RPE ' + e.rpe + ' \u00b7 rest ' + (e.rest || 60) + 's',
-        note: '', sets: sets
-      };
+    id: uid(), date: todayISO(), name: name, block: block || '',
+    week: '', bodyweight: '', sleep: '', energy: '', notes: '', editIndex: null,
+    exercises: exList.map(function (e) {
+      var sets = [], n = e.setCount || 3, i;
+      for (i = 0; i < n; i++) sets.push({ weight: '', reps: '', rpe: (e.rpe ? String(e.rpe).split('-')[0] : ''), done: false });
+      return { name: e.name, superset: e.superset || null, rest: e.rest || 60, scheme: e.scheme || '', note: '', sets: sets };
     })
   };
   prefillLastWeights(active);
-  view = 'log';
+  view = 'log'; render(); window.scrollTo(0, 0);
+}
+function startWorkout(rid) {
+  var r = D.routines.filter(function (x) { return x.id === rid; })[0];
+  if (!r) return;
+  makeActive(r.name, r.block, r.exercises.map(function (e) {
+    return { name: e.name, setCount: e.sets, rpe: e.rpe, rest: e.rest, superset: e.superset,
+      scheme: e.sets + ' x ' + e.reps + ' @ RPE ' + e.rpe + ' \u00b7 rest ' + (e.rest || 60) + 's' };
+  }));
+}
+function startBlank() {
+  var name = prompt('Workout name', 'Workout');
+  if (name === null) return;
+  makeActive((name || 'Workout').trim() || 'Workout', '', []);
+}
+function startTemplate(tid) {
+  var t = (D.templates || []).filter(function (x) { return x.id === tid; })[0];
+  if (!t) return;
+  makeActive(t.name, '', t.exercises.map(function (e) {
+    return { name: e.name, setCount: e.sets, rest: e.rest, superset: e.superset, scheme: e.scheme || '' };
+  }));
+}
+function startEdit(idx) {
+  var w = D.workouts[idx];
+  if (!w) return;
+  active = JSON.parse(JSON.stringify(w));
+  active.editIndex = idx;
+  active.exercises.forEach(function (e) { if (!e.sets) e.sets = []; });
+  stopTimer(); view = 'log'; render(); window.scrollTo(0, 0);
+}
+function addExercise() {
+  var name = prompt('Exercise name');
+  if (!name || !name.trim()) return;
+  active.exercises.push({ name: name.trim(), superset: null, rest: 60, scheme: '', note: '', sets: [{ weight: '', reps: '', rpe: '', done: false }] });
   render();
-  window.scrollTo(0, 0);
+}
+function removeExercise(ei) {
+  if (!confirm('Remove ' + active.exercises[ei].name + '?')) return;
+  active.exercises.splice(ei, 1); render();
+}
+function toggleSkip(ei) { active.exercises[ei].skipped = !active.exercises[ei].skipped; render(); }
+function removeSet(ei) { var ex = active.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); render(); } }
+function saveAsTemplate() {
+  var name = prompt('Template name', active.name || 'My Template');
+  if (!name || !name.trim()) return;
+  if (!D.templates) D.templates = [];
+  D.templates.push({
+    id: 't' + Date.now().toString(36),
+    name: name.trim(),
+    exercises: active.exercises.map(function (e) {
+      return { name: e.name, sets: (e.sets ? e.sets.length : 3), scheme: e.scheme || '', rest: e.rest || 60, superset: e.superset || null };
+    })
+  });
+  toast('Template saved'); syncDataJson('template: ' + name.trim());
+}
+function deleteTemplate(tid) {
+  if (!confirm('Delete this template?')) return;
+  D.templates = (D.templates || []).filter(function (t) { return t.id !== tid; });
+  render(); syncDataJson('delete template');
 }
 function prefillLastWeights(w) {
   // suggest last used weight/reps for each exercise as placeholders
@@ -543,8 +646,13 @@ function lastSetFor(name) {
 }
 
 function logActiveHtml() {
+  var isEdit = active.editIndex != null;
   var h = '';
-  h += '<div class="card"><div class="row" style="gap:8px">' +
+  h += '<div class="card">';
+  h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Workout name</label>';
+  h += '<input value="' + esc(active.name) + '" oninput="active.name=this.value" placeholder="e.g. Push" ' +
+    'autocapitalize="words" style="width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px;font-weight:700;margin-bottom:12px">';
+  h += '<div class="row" style="gap:8px">' +
     miniField('Week', 'week', active.week, 'wk') +
     miniField('BW', 'bodyweight', active.bodyweight, 'lb') +
     miniField('Sleep', 'sleep', active.sleep, 'hr') +
@@ -552,32 +660,43 @@ function logActiveHtml() {
     '</div></div>';
   active.exercises.forEach(function (ex, ei) {
     h += '<div class="ex">';
-    h += '<div class="row"><div><div class="name">' + esc(ex.name) + '</div>' +
-      '<div class="scheme">' + esc(ex.scheme) + '</div></div>';
-    if (ex.superset) h += '<div class="ss">SS</div>';
+    h += '<div class="row" style="align-items:flex-start"><div style="flex:1"><div class="name">' + esc(ex.name) + '</div>' +
+      (ex.scheme ? '<div class="scheme">' + esc(ex.scheme) + '</div>' : '') + '</div>' +
+      '<div style="display:flex;gap:6px;align-items:center">' +
+      '<button class="exbtn' + (ex.skipped ? ' on' : '') + '" onclick="toggleSkip(' + ei + ')">' + (ex.skipped ? 'Unskip' : 'Skip') + '</button>' +
+      '<button class="exbtn del" onclick="removeExercise(' + ei + ')">\u2715</button></div>';
     h += '</div>';
-    if (ex.prev) h += '<div class="muted" style="font-size:12px;margin-top:6px">Last: ' + esc(ex.prev.weight) + ' \u00d7 ' + esc(ex.prev.reps) + '</div>';
-    h += '<div class="fieldhead"><span></span><span>WEIGHT</span><span>REPS</span><span>RPE</span><span></span></div>';
-    ex.sets.forEach(function (s, si) {
-      var ph = ex.prev ? ex.prev.weight : '';
-      var phr = ex.prev ? ex.prev.reps : '';
-      h += '<div class="setrow">' +
-        '<div class="lbl">S' + (si + 1) + '</div>' +
-        inp(ei, si, 'weight', s.weight, ph) +
-        inp(ei, si, 'reps', s.reps, phr) +
-        inp(ei, si, 'rpe', s.rpe, '') +
-        '<button class="chk ' + (s.done ? 'on' : '') + '" onclick="toggleSet(' + ei + ',' + si + ')">' + (s.done ? '\u2713' : '') + '</button>' +
+    if (ex.skipped) {
+      h += '<div style="margin-top:10px"><span class="pill" style="background:rgba(139,145,158,.18);color:var(--muted)">Skipped today</span></div>';
+    } else {
+      if (ex.prev) h += '<div class="muted" style="font-size:12px;margin-top:6px">Last: ' + esc(ex.prev.weight) + ' \u00d7 ' + esc(ex.prev.reps) + '</div>';
+      h += '<div class="fieldhead"><span></span><span>WEIGHT</span><span>REPS</span><span>RPE</span><span></span></div>';
+      ex.sets.forEach(function (s, si) {
+        var ph = ex.prev ? ex.prev.weight : '';
+        var phr = ex.prev ? ex.prev.reps : '';
+        h += '<div class="setrow">' +
+          '<div class="lbl">S' + (si + 1) + '</div>' +
+          inp(ei, si, 'weight', s.weight, ph) +
+          inp(ei, si, 'reps', s.reps, phr) +
+          inp(ei, si, 'rpe', s.rpe, '') +
+          '<button class="chk ' + (s.done ? 'on' : '') + '" onclick="toggleSet(' + ei + ',' + si + ')">' + (s.done ? '\u2713' : '') + '</button>' +
+          '</div>';
+      });
+      h += '<div class="row" style="gap:8px;margin-top:10px">' +
+        '<button class="btn ghost sm" onclick="addSet(' + ei + ')">+ set</button>' +
+        (ex.sets.length > 1 ? '<button class="btn ghost sm" onclick="removeSet(' + ei + ')">\u2212 set</button>' : '') +
         '</div>';
-    });
-    h += '<button class="btn ghost sm" style="margin-top:10px" onclick="addSet(' + ei + ')">+ set</button>';
+    }
     h += '</div>';
   });
+  h += '<button class="btn ghost" onclick="addExercise()" style="margin-bottom:12px">+ Add exercise</button>';
   h += '<div class="card"><div class="field" style="margin:0"><label>Post-session notes</label>' +
     '<input value="' + esc(active.notes) + '" oninput="active.notes=this.value" placeholder="Top set, issues, next time\u2026"></div></div>';
-  h += '<div style="height:70px"></div>';
+  if (!isEdit) h += '<button class="btn ghost" onclick="saveAsTemplate()" style="margin-bottom:12px">Save as template</button>';
+  h += '<div style="height:80px"></div>';
   h += '<div class="finishbar"><div class="inner"><div class="row" style="gap:10px">' +
-    '<button class="btn ghost" style="flex:1" onclick="cancelWorkout()">Discard</button>' +
-    '<button class="btn" style="flex:2" onclick="finishWorkout()">Finish &amp; sync</button>' +
+    '<button class="btn ghost" style="flex:1" onclick="cancelWorkout()">' + (isEdit ? 'Cancel' : 'Discard') + '</button>' +
+    '<button class="btn" style="flex:2" onclick="finishWorkout()">' + (isEdit ? 'Save changes' : 'Finish &amp; sync') + '</button>' +
     '</div></div></div>';
   return h;
 }
@@ -595,7 +714,7 @@ function toggleSet(ei, si) {
   var s = active.exercises[ei].sets[si];
   s.done = !s.done;
   render();
-  if (s.done) { startTimer(active.exercises[ei].rest || 60); }
+  if (s.done && active.editIndex == null) { startTimer(active.exercises[ei].rest || 60); }
 }
 function addSet(ei) {
   var ex = active.exercises[ei];
@@ -603,25 +722,34 @@ function addSet(ei) {
   render();
 }
 function cancelWorkout() {
-  if (!confirm('Discard this workout? Nothing will be saved.')) return;
-  active = null; stopTimer(); view = 'log'; render();
+  var isEdit = active.editIndex != null;
+  if (!confirm(isEdit ? 'Discard changes to this workout?' : 'Discard this workout? Nothing will be saved.')) return;
+  var idx = active.editIndex;
+  active = null; stopTimer();
+  if (isEdit) { viewWorkout = idx; view = 'workout'; } else { view = 'log'; logMode = 'menu'; }
+  render();
 }
 function finishWorkout() {
+  if (!active.name || !active.name.trim()) { toast('Name your workout first'); return; }
+  var isEdit = active.editIndex != null;
   var logged = 0;
-  active.exercises.forEach(function (ex) { ex.sets.forEach(function (s) { if (s.done) logged++; }); });
+  active.exercises.forEach(function (ex) { if (!ex.skipped) ex.sets.forEach(function (s) { if (s.done) logged++; }); });
   if (logged === 0 && !confirm('No sets marked done. Save anyway?')) return;
-  // record latest bodyweight if entered
-  if (active.bodyweight && !isNaN(parseFloat(active.bodyweight))) {
+  // record latest bodyweight if entered (new workouts only)
+  if (!isEdit && active.bodyweight && !isNaN(parseFloat(active.bodyweight))) {
     D.bodyweight.push({ date: dayStr(active.date), value: parseFloat(active.bodyweight) });
   }
   var clean = JSON.parse(JSON.stringify(active));
-  delete clean.routineId;
-  D.workouts.push(clean);
+  var idx = clean.editIndex;
+  delete clean.routineId; delete clean.editIndex;
+  clean.exercises.forEach(function (e) { delete e.prev; });
+  if (isEdit) { D.workouts[idx] = clean; } else { D.workouts.push(clean); }
   recomputePRs();
   cacheData();
-  var w = clean;
-  active = null; stopTimer(); view = 'history'; render();
-  pushWorkout(w);
+  active = null; stopTimer();
+  if (isEdit) { viewWorkout = idx; view = 'workout'; } else { view = 'history'; }
+  render();
+  pushWorkout(clean);
 }
 
 /* ---------- History ---------- */
@@ -777,6 +905,7 @@ function go(v) {
     if (!confirm('Leave the active workout? It will be discarded.')) return;
     active = null; stopTimer();
   }
+  if (v === 'log' && !active) logMode = 'menu';
   view = v; render(); window.scrollTo(0, 0);
 }
 function toggleTheme() { cfg.theme = (cfg.theme === 'light' ? 'dark' : 'light'); saveCfg(); render(); }
