@@ -346,7 +346,7 @@ function render() {
   renderStartBar();
   if (view === 'dash') renderSyncMini();
   if (view === 'history') initHistorySwipe();
-  if (view === 'body') drawBodyCharts();
+  if (view === 'body') { drawBodyCharts(); drawBodyPRChart(); }
   if (view === 'progress') drawProgressChart();
 }
 function renderStartBar() {
@@ -853,19 +853,44 @@ function bodyHtml() {
     '<input id="bwInput" class="mono" inputmode="decimal" placeholder="lb" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;text-align:center">' +
     '<button class="btn sm" onclick="logBW()">Add</button></div></div>';
   h += '<div class="card"><h2>Bodyweight</h2><canvas id="bwChart" height="160"></canvas></div>';
-  // PR list
-  var names = Object.keys(D.prs).sort();
+  // PR explorer: dropdown selector + inline est-1RM chart
+  var names = prNamesSorted();
   h += '<div class="card"><h2>Personal records</h2>';
-  if (!names.length) h += '<div class="muted">Log some sets and your PRs show up here.</div>';
-  names.forEach(function (n) {
-    var p = D.prs[n];
-    h += '<div class="hitem"><div><div style="font-weight:700">' + esc(n) + '</div>' +
-      '<div class="muted" style="font-size:12px">est. 1RM ' + p.bestE1RM + ' lb \u00b7 ' + niceDate(p.date) + '</div></div>' +
-      '<button class="btn ghost sm" onclick="showProgress(\'' + esc(n).replace(/'/g, "\\'") + '\')">chart</button></div>';
-  });
+  if (!names.length) { h += '<div class="muted">Log some sets and your PRs show up here.</div></div>'; return h; }
+  if (!bodyPR || names.indexOf(bodyPR) < 0) bodyPR = defaultPR(names);
+  var coreNames = names.filter(isCore), restNames = names.filter(function (n) { return !isCore(n); });
+  function opt(n) { return '<option' + (n === bodyPR ? ' selected' : '') + '>' + esc(n) + '</option>'; }
+  h += '<select id="prSel" onchange="setPRExercise(this.value)" style="width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-weight:700">';
+  if (coreNames.length) { h += '<optgroup label="Core lifts">'; coreNames.forEach(function (n) { h += opt(n); }); h += '</optgroup>'; }
+  if (restNames.length) { h += '<optgroup label="Other exercises">'; restNames.forEach(function (n) { h += opt(n); }); h += '</optgroup>'; }
+  h += '</select>';
+  var p = D.prs[bodyPR];
+  h += '<div class="row" style="margin-top:14px;align-items:flex-end">' +
+    '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Best est. 1RM</div>' +
+    '<div class="big" style="font-size:30px">' + p.bestE1RM + '<span style="font-size:14px;font-weight:700;color:var(--muted)"> lb</span></div></div>' +
+    '<div style="text-align:right"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Top weight</div>' +
+    '<div style="font-weight:700;font-size:18px;margin-top:4px">' + p.bestWeight + ' lb</div>' +
+    '<div class="muted" style="font-size:11px">' + niceDate(p.date) + '</div></div></div>';
+  h += '<canvas id="prChart" height="160" style="margin-top:14px"></canvas>';
   h += '</div>';
   return h;
 }
+/* core-lift grouping for the PR selector (Big 3 + OHP + Row + Pull-ups) */
+var bodyPR = null;
+var CORE_PATTERNS = ['back squat', 'bench press', 'deadlift', 'ohp', 'overhead press', 'barbell row', 'pull-up', 'pull up'];
+function isCore(name) { var n = String(name).toLowerCase(); return CORE_PATTERNS.some(function (c) { return n.indexOf(c) > -1; }); }
+function prNamesSorted() {
+  var names = Object.keys(D.prs);
+  return names.filter(isCore).sort().concat(names.filter(function (n) { return !isCore(n); }).sort());
+}
+function defaultPR(names) {
+  var pref = ['back squat', 'bench press', 'deadlift', 'overhead press', 'ohp', 'barbell row', 'pull-up'];
+  var i, j;
+  for (i = 0; i < pref.length; i++) for (j = 0; j < names.length; j++) { if (names[j].toLowerCase().indexOf(pref[i]) > -1) return names[j]; }
+  return names[0];
+}
+function setPRExercise(n) { bodyPR = n; render(); }
+function drawBodyPRChart() { if (bodyPR && $('prChart')) lineChart($('prChart'), exerciseSeries(bodyPR), getCss('--accent')); }
 function logBW() {
   var v = parseFloat($('bwInput').value);
   if (!v) { toast('Enter a number'); return; }
