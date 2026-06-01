@@ -804,7 +804,13 @@ function programsHtml() {
   return h;
 }
 
-/* ---------- Program editor (edit name/method/days/exercises in place) ---------- */
+/* ---------- Program editor (create new or edit in place) ---------- */
+function newProgram() {
+  editProgramId = 'pg' + Date.now().toString(36);   // not in D.programs yet; saveProgramEdit pushes it
+  editProg = { id: editProgramId, name: '', method: '', split: '', blocks: {}, periodized: false,
+    routines: [{ id: 'd0', name: 'Day 1', block: '', exercises: [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }] }] };
+  view = 'progEdit'; render(); window.scrollTo(0, 0);
+}
 function openEditProgram(id) {
   var p = (D.programs || []).filter(function (x) { return x.id === id; })[0];
   if (!p) return;
@@ -847,9 +853,11 @@ function epInput(di, ei, field, val, ph, numeric) {
 function progEditHtml() {
   if (!editProg) return emptyState('Nothing to edit', '');
   var inS = 'width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px';
+  var isNew = (D.programs || []).every(function (p) { return p.id !== editProgramId; });
   var h = '<div class="card"><div class="row" style="margin-bottom:12px">' +
     '<button class="btn ghost sm" onclick="cancelProgramEdit()">Cancel</button>' +
     '<button class="btn sm" onclick="saveProgramEdit()">Save</button></div>';
+  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:18px;margin-bottom:12px">' + (isNew ? 'New program' : 'Edit program') + '</div>';
   h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Program name</label>';
   h += '<input value="' + esc(editProg.name) + '" oninput="editProg.name=this.value" style="' + inS + ';font-weight:700;margin-bottom:10px">';
   h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Method (optional)</label>';
@@ -899,7 +907,9 @@ function logMenuHtml() {
   h += '</div>';
   // Programs section: switch active / import / manage the library
   h += '<div class="card"><div class="row"><h2 style="margin:0">Programs</h2>' +
-    '<button class="btn ghost sm" style="width:auto" onclick="toggleImport()">' + (importOpen ? 'Cancel' : '+ Import') + '</button></div>';
+    '<div style="display:flex;gap:8px">' +
+    '<button class="btn ghost sm" style="width:auto" onclick="newProgram()">+ New</button>' +
+    '<button class="btn ghost sm" style="width:auto" onclick="toggleImport()">' + (importOpen ? 'Cancel' : 'Import') + '</button></div></div>';
   if (importOpen) {
     h += '<textarea id="impText" placeholder="Paste program JSON…" spellcheck="false" autocapitalize="off" style="width:100%;height:140px;margin-top:10px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-family:monospace;font-size:12px"></textarea>';
     h += '<button class="btn sm" style="margin-top:8px;width:100%" onclick="doImport()">Add program</button>';
