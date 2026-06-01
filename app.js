@@ -228,6 +228,9 @@ function bootData() {
 }
 
 /* ---------- PRs ---------- */
+/* Tracks both a weight PR (best est. 1RM) and a rep PR (most reps in one set).
+   Exercises with any bodyweight set (non-numeric weight, e.g. pull-ups) are
+   flagged bodyweight:true so the UI shows a rep-max instead of est. 1RM. */
 function recomputePRs() {
   var prs = {};
   var i, j, k;
@@ -238,18 +241,41 @@ function recomputePRs() {
       for (k = 0; k < ex.sets.length; k++) {
         var s = ex.sets[k];
         if (!s.done) continue;
-        var wt = parseFloat(s.weight), rp = parseInt(s.reps, 10);
-        if (!wt || !rp) continue;
-        var est = e1rm(wt, rp);
-        var rec = prs[ex.name] || { bestWeight: 0, bestE1RM: 0, date: w.date };
-        if (wt > rec.bestWeight) rec.bestWeight = wt;
-        if (est > rec.bestE1RM) { rec.bestE1RM = est; rec.date = w.date; }
+        var rp = parseInt(s.reps, 10);
+        if (!rp) continue;
+        var wt = parseFloat(s.weight);
+        var hasW = !isNaN(wt) && wt > 0;
+        var rec = prs[ex.name] || { bestWeight: 0, bestE1RM: 0, date: w.date, bestReps: 0, repsDate: w.date, bodyweight: false };
+        if (rp > rec.bestReps) { rec.bestReps = rp; rec.repsDate = w.date; }
+        if (hasW) {
+          var est = e1rm(wt, rp);
+          if (wt > rec.bestWeight) rec.bestWeight = wt;
+          if (est > rec.bestE1RM) { rec.bestE1RM = est; rec.date = w.date; }
+        } else {
+          rec.bodyweight = true;
+        }
         prs[ex.name] = rec;
       }
     }
   }
   D.prs = prs;
 }
+/* max reps in a single set per session, chronological (for bodyweight lifts) */
+function repsSeries(name) {
+  var pts = [], i, j, k;
+  var sorted = D.workouts.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+  for (i = 0; i < sorted.length; i++) {
+    var w = sorted[i], best = 0;
+    for (j = 0; j < w.exercises.length; j++) {
+      if (w.exercises[j].name !== name) continue;
+      var sets = w.exercises[j].sets;
+      for (k = 0; k < sets.length; k++) { if (sets[k].done) { var rp = parseInt(sets[k].reps, 10); if (rp > best) best = rp; } }
+    }
+    if (best > 0) pts.push({ x: dayStr(w.date), y: best });
+  }
+  return pts;
+}
+function isRepPR(p) { return !!(p && (p.bodyweight || !p.bestE1RM)); }
 
 /* exercise history for progress chart: best e1RM per session, chronological */
 function exerciseSeries(name) {
@@ -865,13 +891,24 @@ function bodyHtml() {
   if (restNames.length) { h += '<optgroup label="Other exercises">'; restNames.forEach(function (n) { h += opt(n); }); h += '</optgroup>'; }
   h += '</select>';
   var p = D.prs[bodyPR];
-  h += '<div class="row" style="margin-top:14px;align-items:flex-end">' +
-    '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Best est. 1RM</div>' +
-    '<div class="big" style="font-size:30px">' + p.bestE1RM + '<span style="font-size:14px;font-weight:700;color:var(--muted)"> lb</span></div></div>' +
-    '<div style="text-align:right"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Top weight</div>' +
-    '<div style="font-weight:700;font-size:18px;margin-top:4px">' + p.bestWeight + ' lb</div>' +
-    '<div class="muted" style="font-size:11px">' + niceDate(p.date) + '</div></div></div>';
-  h += '<canvas id="prChart" height="160" style="margin-top:14px"></canvas>';
+  if (isRepPR(p)) {
+    h += '<div class="row" style="margin-top:14px;align-items:flex-end">' +
+      '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Rep max (1 set)</div>' +
+      '<div class="big" style="font-size:30px">' + p.bestReps + '<span style="font-size:14px;font-weight:700;color:var(--muted)"> reps</span></div></div>' +
+      '<div style="text-align:right"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Bodyweight</div>' +
+      (p.bestWeight ? '<div style="font-weight:700;font-size:18px;margin-top:4px">+' + p.bestWeight + ' lb top</div>' : '<div class="muted" style="font-size:13px;margin-top:6px">no added load</div>') +
+      '<div class="muted" style="font-size:11px">' + niceDate(p.repsDate) + '</div></div></div>';
+    h += '<div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-top:14px">Rep max over time</div>';
+  } else {
+    h += '<div class="row" style="margin-top:14px;align-items:flex-end">' +
+      '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Best est. 1RM</div>' +
+      '<div class="big" style="font-size:30px">' + p.bestE1RM + '<span style="font-size:14px;font-weight:700;color:var(--muted)"> lb</span></div></div>' +
+      '<div style="text-align:right"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Top weight</div>' +
+      '<div style="font-weight:700;font-size:18px;margin-top:4px">' + p.bestWeight + ' lb</div>' +
+      '<div class="muted" style="font-size:11px">' + niceDate(p.date) + '</div></div></div>';
+    h += '<div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-top:14px">Estimated 1RM over time</div>';
+  }
+  h += '<canvas id="prChart" height="160" style="margin-top:8px"></canvas>';
   h += '</div>';
   return h;
 }
@@ -890,7 +927,12 @@ function defaultPR(names) {
   return names[0];
 }
 function setPRExercise(n) { bodyPR = n; render(); }
-function drawBodyPRChart() { if (bodyPR && $('prChart')) lineChart($('prChart'), exerciseSeries(bodyPR), getCss('--accent')); }
+function drawBodyPRChart() {
+  if (!bodyPR || !$('prChart')) return;
+  var p = D.prs[bodyPR];
+  if (isRepPR(p)) lineChart($('prChart'), repsSeries(bodyPR), getCss('--accent2'));
+  else lineChart($('prChart'), exerciseSeries(bodyPR), getCss('--accent'));
+}
 function logBW() {
   var v = parseFloat($('bwInput').value);
   if (!v) { toast('Enter a number'); return; }
