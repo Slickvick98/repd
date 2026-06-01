@@ -114,6 +114,7 @@ function pullFromGit() {
     if (res && res.content) {
       var remote = JSON.parse(b64decode(res.content));
       D = mergeSeed(remote);
+      ensureData();
       cacheData();
       setSync('ok', 'Synced \u00b7 ' + new Date().toLocaleTimeString());
     } else {
@@ -216,6 +217,85 @@ function ensureData() {
   if (!D.bodyweight) D.bodyweight = [];
   if (!D.splits) D.splits = [];
   if (!D.templates) D.templates = [];
+  // ---- programs library migration ----
+  if (!D.programs) {
+    D.programs = [];
+    if (D.program && D.program.name) {
+      var blocks = D.program.blocks || {};
+      D.programs.push({
+        id: 'pg-orig', name: D.program.name, method: D.program.method || '', split: D.program.split || '',
+        blocks: blocks, periodized: Object.keys(blocks).length > 0,
+        routines: D.routines ? JSON.parse(JSON.stringify(D.routines)) : []
+      });
+    }
+  }
+  if (D.activeProgramId === undefined || D.activeProgramId === null) {
+    D.activeProgramId = D.programs[0] ? D.programs[0].id : null;
+  }
+  if (!D.programStart) {
+    if (D.workouts.length) {
+      var ds = D.workouts.map(function (w) { return new Date(w.date); }).sort(function (a, b) { return a - b; });
+      D.programStart = dayStr(ds[0].toISOString());
+    } else { D.programStart = dayStr(todayISO()); }
+  }
+  applyActiveProgram();
+}
+function deriveSplit(routines) {
+  var seen = {}, names = [];
+  (routines || []).forEach(function (r) { if (!seen[r.name]) { seen[r.name] = 1; names.push(r.name); } });
+  return names.join(' / ');
+}
+function activeProgram() {
+  if (!D.programs || !D.programs.length) return null;
+  return D.programs.filter(function (p) { return p.id === D.activeProgramId; })[0] || D.programs[0];
+}
+/* mirror the active program into D.program / D.routines so every view works unchanged */
+function applyActiveProgram() {
+  var p = activeProgram();
+  if (!p) return;
+  D.activeProgramId = p.id;
+  D.program = { name: p.name, method: p.method || '', split: p.split || deriveSplit(p.routines), blocks: p.blocks || {} };
+  D.routines = JSON.parse(JSON.stringify(p.routines || []));
+}
+function setActiveProgram(id) {
+  D.activeProgramId = id;
+  D.programStart = dayStr(todayISO());   // new activation resets the week clock
+  applyActiveProgram();
+  recomputePRs(); cacheData();
+  view = 'program'; programBlock = null; programDay = null;
+  render(); window.scrollTo(0, 0);
+  syncDataJson('set active program: ' + (D.program ? D.program.name : ''));
+  toast('Active program set');
+}
+function deleteProgram(id) {
+  var p = (D.programs || []).filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  if (!confirm('Delete program "' + p.name + '"? Logged workouts are kept.')) return;
+  D.programs = D.programs.filter(function (x) { return x.id !== id; });
+  if (D.activeProgramId === id) { D.activeProgramId = D.programs[0] ? D.programs[0].id : null; applyActiveProgram(); }
+  render();
+  syncDataJson('delete program: ' + p.name);
+}
+function parseProgramJson(text) {
+  var o = JSON.parse(text);
+  if (!o || !o.name) throw new Error('missing "name"');
+  var days = o.days || o.routines || [];
+  if (!days.length) throw new Error('needs a "days" array');
+  var pid = 'pg' + Date.now().toString(36);
+  var routines = days.map(function (d, i) {
+    if (!d.name || !d.exercises || !d.exercises.length) throw new Error('each day needs "name" and "exercises"');
+    return {
+      id: pid + '-' + i, name: String(d.name), block: (d.block != null ? d.block : ''),
+      phase: d.phase || '', weeks: d.weeks || '', deloadWeek: d.deloadWeek || '', derived: !!d.derived,
+      exercises: d.exercises.map(function (e) {
+        return { name: String(e.name), type: e.type || '', sets: parseInt(e.sets, 10) || 3,
+          reps: String(e.reps == null ? '' : e.reps), rpe: String(e.rpe == null ? '' : e.rpe), rest: parseInt(e.rest, 10) || 90 };
+      })
+    };
+  });
+  var blocks = o.blocks || {};
+  return { id: pid, name: String(o.name), method: o.method || '', split: o.split || deriveSplit(routines),
+    blocks: blocks, periodized: Object.keys(blocks).length > 0, routines: routines };
 }
 function bootData() {
   // start from cache if present, else seed file
@@ -425,6 +505,7 @@ function viewHtml() {
   if (active) return logActiveHtml();
   if (view === 'dash') return dashHtml();
   if (view === 'program') return programHtml();
+  if (view === 'programs') return programsHtml();
   if (view === 'workout') return workoutHtml();
   if (view === 'log') return logHtml();
   if (view === 'history') return historyHtml();
@@ -445,12 +526,23 @@ function nextWorkoutName() {
   for (i = 0; i < order.length; i++) { if (order[i].toLowerCase() === String(last.name).toLowerCase()) { idx = i; break; } }
   return idx === -1 ? order[0] : order[(idx + 1) % order.length];
 }
+function programTotalWeeks() {
+  var b = D.program && D.program.blocks; if (!b) return 0;
+  var max = 0;
+  Object.keys(b).forEach(function (k) {
+    var dl = parseInt(b[k].deload, 10) || 0; if (dl > max) max = dl;
+    var parts = String(b[k].weeks || '').split('-'); var hi = parseInt(parts[parts.length - 1], 10) || 0; if (hi > max) max = hi;
+  });
+  return max;
+}
+function isPeriodized() { return programTotalWeeks() > 0; }
 function programProgress() {
-  if (!D.workouts.length) return { week: 1, total: 12, pct: 0, started: false };
-  var dates = D.workouts.map(function (w) { return new Date(w.date); }).sort(function (a, b) { return a - b; });
-  var weeks = Math.floor((Date.now() - dates[0].getTime()) / (7 * 24 * 3600 * 1000)) + 1;
-  if (weeks < 1) weeks = 1; if (weeks > 12) weeks = 12;
-  return { week: weeks, total: 12, pct: Math.round(weeks / 12 * 100), started: true };
+  var total = programTotalWeeks();
+  var start = D.programStart ? new Date(D.programStart) : (D.workouts.length ? new Date(D.workouts[0].date) : new Date(todayISO()));
+  var weeks = Math.floor((Date.now() - start.getTime()) / (7 * 24 * 3600 * 1000)) + 1;
+  if (weeks < 1) weeks = 1;
+  if (total && weeks > total) weeks = total;
+  return { week: weeks, total: total, pct: total ? Math.round(weeks / total * 100) : 0, periodized: total > 0 };
 }
 
 function dashHtml() {
@@ -467,9 +559,13 @@ function dashHtml() {
     h += '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">' + esc(D.program.name) + '</div>' +
       '<span id="syncmini" class="dot"></span></div>';
     h += '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(D.program.split) + '</div>';
-    h += '<div class="row" style="margin-top:12px"><span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">Week ' + pr.week + ' of ' + pr.total + '</span>' +
-      '<span class="mono" style="font-size:12px;color:var(--accent)">' + pr.pct + '%</span></div>';
-    h += '<div class="pbar"><i style="width:' + pr.pct + '%"></i></div>';
+    if (pr.periodized) {
+      h += '<div class="row" style="margin-top:12px"><span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">Week ' + pr.week + ' of ' + pr.total + '</span>' +
+        '<span class="mono" style="font-size:12px;color:var(--accent)">' + pr.pct + '%</span></div>';
+      h += '<div class="pbar"><i style="width:' + pr.pct + '%"></i></div>';
+    } else {
+      h += '<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:12px">' + D.routines.length + ' training days</div>';
+    }
     h += '<div class="row" style="margin-top:14px;gap:10px;align-items:center">' +
       '<div style="flex:1"><div style="' + lblsm + '">Previous</div><div style="font-weight:700;margin-top:2px">' + (last ? esc(last.name) : '\u2014') + '</div>' +
       (last ? '<div class="muted" style="font-size:11px">' + niceDate(last.date) + '</div>' : '') + '</div>' +
@@ -552,15 +648,35 @@ function workoutHtml() {
 }
 
 /* ---------- Program explorer (drill-down: overview -> block -> day) ---------- */
-var programBlock = null, programDay = null;
+var programBlock = null, programDay = null, importOpen = false;
 var BLOCK_GOALS = {
   '1': { goal: 'Build the muscle base — moderate loads and higher reps. Add reps week to week, then add weight (double progression).', scheme: 'Compounds 8–10 · Isolation 12–15 · RPE 7–8' },
   '2': { goal: 'Bridge hypertrophy into strength — heavier compounds while keeping solid volume on isolation work.', scheme: 'Compounds 6–8 · Isolation 8–12 · RPE 8' },
   '3': { goal: 'Peak strength — low-rep heavy compounds at high effort; isolation work maintains muscle.', scheme: 'Compounds 4–6 · Isolation 6–10 · RPE 8–9' }
 };
 function blockMeta(b) { return (D.program.blocks && (D.program.blocks[b] || D.program.blocks[String(b)])) || {}; }
-function blockOf(week) { return week <= 4 ? 1 : week <= 8 ? 2 : 3; }
-function isDeloadWeek(week) { return week === 4 || week === 8 || week === 12; }
+function blockOf(week) {
+  var b = (D.program && D.program.blocks) || {}, keys = Object.keys(b), i;
+  for (i = 0; i < keys.length; i++) {
+    var parts = String(b[keys[i]].weeks || '').split('-');
+    var lo = parseInt(parts[0], 10), hi = parseInt(parts[parts.length - 1], 10), dl = parseInt(b[keys[i]].deload, 10);
+    if ((week >= lo && week <= hi) || week === dl) return parseInt(keys[i], 10) || keys[i];
+  }
+  return keys.length ? (parseInt(keys[0], 10) || 1) : 1;
+}
+function isDeloadWeek(week) {
+  var b = (D.program && D.program.blocks) || {};
+  return Object.keys(b).some(function (k) { return parseInt(b[k].deload, 10) === week; });
+}
+function blockColor(b) { return b === 1 ? 'var(--accent)' : b === 2 ? 'var(--accent2)' : b === 3 ? 'var(--good)' : 'var(--accent2)'; }
+function progDayCard(r) {
+  return '<button class="rcard scard" onclick="progOpenDay(\'' + r.id + '\')">' +
+    '<div class="row"><div><div style="font-weight:800;font-size:17px">' + esc(r.name) + '</div>' +
+    '<div class="muted" style="font-size:12px;margin-top:2px">' + r.exercises.length + ' exercises</div></div>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+    (r.derived ? '<span class="pill derived">derived</span>' : '') +
+    '<span class="muted" style="font-size:18px">›</span></div></div></button>';
+}
 function fmtRest(sec) { sec = parseInt(sec, 10) || 0; if (sec < 60) return sec + 's'; return Math.floor(sec / 60) + ':' + pad(sec % 60); }
 function blockRoutines(b) { return D.routines.filter(function (r) { return r.block === b; }); }
 function openProgram() { view = 'program'; programBlock = null; programDay = null; render(); window.scrollTo(0, 0); }
@@ -575,31 +691,45 @@ function programHtml() {
 }
 function programOverviewHtml() {
   var pr = programProgress();
-  var h = '<div class="card"><button class="btn ghost sm" onclick="go(\'dash\')" style="margin-bottom:12px">← Back</button>';
+  var periodized = isPeriodized();
+  var h = '<div class="card"><div class="row" style="margin-bottom:12px">' +
+    '<button class="btn ghost sm" onclick="go(\'dash\')">← Back</button>' +
+    '<button class="btn ghost sm" onclick="openPrograms()">Programs ⇄</button></div>';
   h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">' + esc(D.program.name) + '</div>';
-  h += '<div class="muted" style="font-size:12.5px;margin-top:4px">' + esc(D.program.method) + '</div>';
+  if (D.program.method) h += '<div class="muted" style="font-size:12.5px;margin-top:4px">' + esc(D.program.method) + '</div>';
   h += '<div class="muted" style="font-size:12.5px">' + esc(D.program.split) + '</div>';
-  h += '<div style="margin-top:14px;display:flex">';
-  for (var wk = 1; wk <= 12; wk++) {
-    var b = blockOf(wk), dl = isDeloadWeek(wk), cur = (wk === pr.week);
-    var bg = b === 1 ? 'var(--accent)' : b === 2 ? 'var(--accent2)' : 'var(--good)';
-    var style = 'flex:1;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0e0f12;background:' + bg + ';' +
-      (dl ? 'opacity:.4;' : '') + (cur ? 'outline:2px solid var(--txt);outline-offset:1px;' : '') + (wk > 1 ? 'margin-left:' + (wk % 4 === 1 ? '8' : '3') + 'px;' : '');
-    h += '<div style="' + style + '">' + wk + '</div>';
+  if (periodized) {
+    var total = pr.total, prevBlock = 0;
+    h += '<div style="margin-top:14px;display:flex">';
+    for (var wk = 1; wk <= total; wk++) {
+      var b = blockOf(wk), dl = isDeloadWeek(wk), cur = (wk === pr.week);
+      var style = 'flex:1;min-width:0;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0e0f12;background:' + blockColor(b) + ';' +
+        (dl ? 'opacity:.4;' : '') + (cur ? 'outline:2px solid var(--txt);outline-offset:1px;' : '') + (wk > 1 ? 'margin-left:' + (b !== prevBlock ? '8' : '3') + 'px;' : '');
+      h += '<div style="' + style + '">' + wk + '</div>';
+      prevBlock = b;
+    }
+    h += '</div><div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of ' + total + ' · faded = deload week</div>';
+  } else {
+    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + D.routines.length + ' training days · simple program</div>';
   }
   h += '</div>';
-  h += '<div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of 12 · faded = deload week</div>';
-  h += '</div>';
-  [1, 2, 3].forEach(function (b) {
-    var m = blockMeta(b), g = BLOCK_GOALS[String(b)] || {}, cur = blockOf(pr.week) === b;
-    h += '<button class="rcard scard" onclick="progOpenBlock(' + b + ')">' +
-      '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">Block ' + b + '</div>' +
-      (cur ? '<span class="pill accent">Current</span>' : '<span class="muted" style="font-size:18px">›</span>') + '</div>' +
-      '<div style="font-weight:700;margin-top:2px">' + esc(m.phase || '') + '</div>' +
-      '<div class="muted" style="font-size:12px;margin-top:2px">Weeks ' + esc(m.weeks || '') + ' · Deload wk ' + esc(m.deload || '') + ' · 5 days</div>' +
-      (g.goal ? '<div class="muted" style="font-size:12.5px;line-height:1.45;margin-top:8px">' + esc(g.goal) + '</div>' : '') +
-      '</button>';
-  });
+  if (periodized) {
+    var pBlocks = Object.keys(D.program.blocks).map(function (k) { return parseInt(k, 10); }).sort(function (a, b) { return a - b; });
+    pBlocks.forEach(function (b) {
+      var m = blockMeta(b), g = BLOCK_GOALS[String(b)] || {}, cur = blockOf(pr.week) === b;
+      var nDays = blockRoutines(b).length;
+      h += '<button class="rcard scard" onclick="progOpenBlock(' + b + ')">' +
+        '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">Block ' + b + '</div>' +
+        (cur ? '<span class="pill accent">Current</span>' : '<span class="muted" style="font-size:18px">›</span>') + '</div>' +
+        '<div style="font-weight:700;margin-top:2px">' + esc(m.phase || '') + '</div>' +
+        '<div class="muted" style="font-size:12px;margin-top:2px">Weeks ' + esc(m.weeks || '') + ' · Deload wk ' + esc(m.deload || '') + ' · ' + nDays + ' days</div>' +
+        (g.goal ? '<div class="muted" style="font-size:12.5px;line-height:1.45;margin-top:8px">' + esc(g.goal) + '</div>' : '') +
+        '</button>';
+    });
+  } else {
+    h += '<div style="margin:14px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Training days</h2></div>';
+    D.routines.forEach(function (r) { h += progDayCard(r); });
+  }
   h += '<div style="height:16px"></div>';
   return h;
 }
@@ -613,14 +743,7 @@ function programBlockHtml() {
   if (g.scheme) h += '<div style="margin-top:10px"><span class="pill">' + esc(g.scheme) + '</span></div>';
   h += '</div>';
   h += '<div style="margin:14px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Training days</h2></div>';
-  blockRoutines(b).forEach(function (r) {
-    h += '<button class="rcard scard" onclick="progOpenDay(\'' + r.id + '\')">' +
-      '<div class="row"><div><div style="font-weight:800;font-size:17px">' + esc(r.name) + '</div>' +
-      '<div class="muted" style="font-size:12px;margin-top:2px">' + r.exercises.length + ' exercises</div></div>' +
-      '<div style="display:flex;gap:8px;align-items:center">' +
-      (r.derived ? '<span class="pill derived">derived</span>' : '<span class="pill">from vault</span>') +
-      '<span class="muted" style="font-size:18px">›</span></div></div></button>';
-  });
+  blockRoutines(b).forEach(function (r) { h += progDayCard(r); });
   h += '<div style="height:16px"></div>';
   return h;
 }
@@ -630,13 +753,52 @@ function programDayHtml() {
   var m = blockMeta(r.block);
   var h = '<div class="card"><button class="btn ghost sm" onclick="progOpenBlock(' + r.block + ')" style="margin-bottom:12px">← Block ' + r.block + '</button>';
   h += '<div class="row"><div><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:24px">' + esc(r.name) + '</div>' +
-    '<div class="muted" style="font-size:12.5px;margin-top:2px">Block ' + r.block + ' · ' + esc(m.phase || '') + '</div></div>' +
-    (r.derived ? '<span class="pill derived">derived</span>' : '<span class="pill">from vault</span>') + '</div>';
+    '<div class="muted" style="font-size:12.5px;margin-top:2px">' + (r.block ? 'Block ' + r.block + ' · ' : '') + esc(m.phase || '') + '</div></div>' +
+    (r.derived ? '<span class="pill derived">derived</span>' : '') + '</div>';
   h += '<button class="btn" style="margin-top:12px" onclick="startWorkout(\'' + r.id + '\')">Start this workout</button></div>';
   r.exercises.forEach(function (e, i) {
     h += '<div class="ex"><div class="row"><div><div class="name">' + (i + 1) + '. ' + esc(e.name) + '</div>' +
       '<div class="scheme">' + e.sets + ' × ' + esc(e.reps) + ' @ RPE ' + esc(e.rpe) + ' · rest ' + fmtRest(e.rest) + '</div></div>' +
       (e.superset ? '<div class="ss">SS</div>' : '') + '</div></div>';
+  });
+  h += '<div style="height:16px"></div>';
+  return h;
+}
+
+/* ---------- Programs library (list / set active / delete / import) ---------- */
+function openPrograms() { view = 'programs'; importOpen = false; render(); window.scrollTo(0, 0); }
+function toggleImport() { importOpen = !importOpen; render(); }
+function doImport() {
+  var el = $('impText'); if (!el) return;
+  var prog;
+  try { prog = parseProgramJson(el.value); } catch (e) { toast('Invalid JSON: ' + e.message); return; }
+  D.programs.push(prog);
+  importOpen = false;
+  if (confirm('Added “' + prog.name + '”. Set it as your active program now?')) {
+    setActiveProgram(prog.id);
+  } else {
+    render(); toast('Program added'); syncDataJson('add program: ' + prog.name);
+  }
+}
+function programsHtml() {
+  var h = '<div class="card"><button class="btn ghost sm" onclick="go(\'dash\')" style="margin-bottom:12px">← Back</button><h2>Programs</h2>';
+  h += '<button class="btn" onclick="toggleImport()">' + (importOpen ? 'Cancel import' : 'Import program (JSON)') + '</button>';
+  if (importOpen) {
+    h += '<textarea id="impText" placeholder="Paste program JSON…" spellcheck="false" autocapitalize="off" style="width:100%;height:150px;margin-top:10px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-family:monospace;font-size:12px"></textarea>';
+    h += '<button class="btn sm" style="margin-top:8px;width:100%" onclick="doImport()">Add program</button>';
+    h += '<div class="muted" style="font-size:11px;line-height:1.55;margin-top:10px">Keys: name, method, split (optional), blocks (optional, for periodized), and days[] — each day has name, optional block, and exercises[] with name, sets, reps, rpe, rest. Omit blocks for a simple program.</div>';
+  }
+  h += '</div>';
+  if (!D.programs.length) { h += emptyState('No programs', 'Import one above to get started.'); return h; }
+  D.programs.forEach(function (p) {
+    var active = p.id === D.activeProgramId;
+    h += '<div class="ex"><div class="row" style="align-items:flex-start"><div style="flex:1"><div class="name">' + esc(p.name) + (active ? ' <span class="pill accent">Active</span>' : '') + '</div>' +
+      '<div class="scheme">' + (p.routines ? p.routines.length : 0) + ' days · ' + (p.periodized ? 'periodized' : 'simple') + '</div></div></div>';
+    h += '<div class="row" style="gap:8px;margin-top:10px">';
+    if (!active) h += '<button class="btn sm" style="flex:1" onclick="setActiveProgram(\'' + p.id + '\')">Set active</button>';
+    else h += '<button class="btn ghost sm" style="flex:1" onclick="openProgram()">View</button>';
+    h += '<button class="btn ghost sm" onclick="deleteProgram(\'' + p.id + '\')" style="color:var(--bad)">Delete</button>';
+    h += '</div></div>';
   });
   h += '<div style="height:16px"></div>';
   return h;
@@ -675,29 +837,32 @@ function logTemplatesHtml() {
 /* ---------- Log: routine picker ---------- */
 function logPickerHtml() {
   var h = '<div class="card"><button class="btn ghost sm" onclick="setLogMode(\'menu\')" style="margin-bottom:10px">← Back</button><h2>Pick a day</h2>';
-  h += '<div class="blocknav">';
-  [1, 2, 3].forEach(function (b) {
-    h += '<button class="' + (blockTab === b ? 'on' : '') + '" onclick="setBlock(' + b + ')">Block ' + b + '</button>';
-  });
-  h += '</div>';
-  var meta = D.program.blocks[blockTab] || D.program.blocks[String(blockTab)];
+  var periodized = isPeriodized();
+  var meta = null;
+  if (periodized) {
+    var keys = Object.keys(D.program.blocks).map(function (k) { return parseInt(k, 10); }).sort(function (a, b) { return a - b; });
+    if (keys.indexOf(blockTab) < 0) blockTab = keys[0];
+    h += '<div class="blocknav">';
+    keys.forEach(function (b) { h += '<button class="' + (blockTab === b ? 'on' : '') + '" onclick="setBlock(' + b + ')">Block ' + b + '</button>'; });
+    h += '</div>';
+    meta = blockMeta(blockTab);
+  }
   if (meta) h += '<div class="muted" style="font-size:13px;margin-bottom:4px">Weeks ' + esc(meta.weeks) + ' \u00b7 ' + esc(meta.phase) + ' \u00b7 deload wk ' + esc(meta.deload) + '</div>';
   h += '</div>';
   h += '<div class="grid">';
-  D.routines.filter(function (r) { return r.block === blockTab; }).forEach(function (r) {
+  (periodized ? D.routines.filter(function (r) { return r.block === blockTab; }) : D.routines).forEach(function (r) {
     h += '<button class="rcard" onclick="startWorkout(\'' + r.id + '\')">' +
       '<div class="day">' + esc(r.name) + '</div>' +
       '<div class="meta">' + r.exercises.length + ' exercises</div>' +
-      (r.derived ? '<div style="margin-top:8px"><span class="pill derived">derived</span></div>'
-                 : '<div style="margin-top:8px"><span class="pill">from vault</span></div>') +
+      (r.derived ? '<div style="margin-top:8px"><span class="pill derived">derived</span></div>' : '') +
       '</button>';
   });
   h += '</div>';
-  h += '<div class="card" style="margin-top:6px"><div class="muted" style="font-size:12.5px;line-height:1.5">' +
-    'Block 1 + Block 3 Upper/Lower are loaded exactly from your Obsidian files. ' +
-    'Cards marked <span class="pill derived">derived</span> were generated from your documented scheme ' +
-    '(B2: 6-8 compound / 8-12 isolation @ RPE 8; B3: 4-6 / 6-10 @ RPE 8-9). Verify against your vault and tell me any corrections.' +
-    '</div></div>';
+  if (D.routines.some(function (r) { return r.derived; })) {
+    h += '<div class="card" style="margin-top:6px"><div class="muted" style="font-size:12.5px;line-height:1.5">' +
+      'Cards marked <span class="pill derived">derived</span> were generated from your documented scheme — verify against your vault.' +
+      '</div></div>';
+  }
   return h;
 }
 function setBlock(b) { blockTab = b; render(); }
@@ -1121,6 +1286,9 @@ function settingsHtml() {
     '<button class="btn ghost" style="margin-top:8px" onclick="testSync()">Test connection (pull)</button>' +
     '<button class="btn ghost" style="margin-top:8px" onclick="pushNow()">Force push current data</button>' +
     '</div>';
+  h += '<div class="card"><h2>Programs</h2>' +
+    '<div class="muted" style="font-size:12.5px;line-height:1.5;margin-bottom:10px">Switch the active program, import a new one, or manage your library.</div>' +
+    '<button class="btn ghost" onclick="openPrograms()">Manage programs</button></div>';
   h += '<div class="card"><h2>Data</h2>' +
     '<div class="muted" style="font-size:12.5px;line-height:1.5;margin-bottom:10px">Source of truth is your Git repo. Local storage is a cache and may be cleared by iOS after long inactivity, so keep sync on.</div>' +
     '<button class="btn ghost" onclick="exportData()">Export workouts.json</button>' +
