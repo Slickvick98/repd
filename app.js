@@ -536,14 +536,14 @@ function programTotalWeeks() {
   });
   return max;
 }
-function isPeriodized() { return programTotalWeeks() > 0; }
+function isPeriodized() { return !!(D.program && D.program.blocks && Object.keys(D.program.blocks).length); }
 function programProgress() {
   var total = programTotalWeeks();
   var start = D.programStart ? new Date(D.programStart) : (D.workouts.length ? new Date(D.workouts[0].date) : new Date(todayISO()));
   var weeks = Math.floor((Date.now() - start.getTime()) / (7 * 24 * 3600 * 1000)) + 1;
   if (weeks < 1) weeks = 1;
   if (total && weeks > total) weeks = total;
-  return { week: weeks, total: total, pct: total ? Math.round(weeks / total * 100) : 0, periodized: total > 0 };
+  return { week: weeks, total: total, pct: total ? Math.round(weeks / total * 100) : 0, periodized: isPeriodized() };
 }
 
 function dashHtml() {
@@ -560,7 +560,7 @@ function dashHtml() {
     h += '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">' + esc(D.program.name) + '</div>' +
       '<span id="syncmini" class="dot"></span></div>';
     h += '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(D.program.split) + '</div>';
-    if (pr.periodized) {
+    if (pr.total > 0) {
       h += '<div class="row" style="margin-top:12px"><span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">Week ' + pr.week + ' of ' + pr.total + '</span>' +
         '<span class="mono" style="font-size:12px;color:var(--accent)">' + pr.pct + '%</span></div>';
       h += '<div class="pbar"><i style="width:' + pr.pct + '%"></i></div>';
@@ -700,15 +700,19 @@ function programOverviewHtml() {
   h += '<div class="muted" style="font-size:12.5px">' + esc(D.program.split) + '</div>';
   if (periodized) {
     var total = pr.total, prevBlock = 0;
-    h += '<div style="margin-top:14px;display:flex">';
-    for (var wk = 1; wk <= total; wk++) {
-      var b = blockOf(wk), dl = isDeloadWeek(wk), cur = (wk === pr.week);
-      var style = 'flex:1;min-width:0;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0e0f12;background:' + blockColor(b) + ';' +
-        (dl ? 'opacity:.4;' : '') + (cur ? 'outline:2px solid var(--txt);outline-offset:1px;' : '') + (wk > 1 ? 'margin-left:' + (b !== prevBlock ? '8' : '3') + 'px;' : '');
-      h += '<div style="' + style + '">' + wk + '</div>';
-      prevBlock = b;
+    if (total > 0) {
+      h += '<div style="margin-top:14px;display:flex">';
+      for (var wk = 1; wk <= total; wk++) {
+        var b = blockOf(wk), dl = isDeloadWeek(wk), cur = (wk === pr.week);
+        var style = 'flex:1;min-width:0;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0e0f12;background:' + blockColor(b) + ';' +
+          (dl ? 'opacity:.4;' : '') + (cur ? 'outline:2px solid var(--txt);outline-offset:1px;' : '') + (wk > 1 ? 'margin-left:' + (b !== prevBlock ? '8' : '3') + 'px;' : '');
+        h += '<div style="' + style + '">' + wk + '</div>';
+        prevBlock = b;
+      }
+      h += '</div><div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of ' + total + ' · faded = deload week</div>';
+    } else {
+      h += '<div class="muted" style="font-size:11px;margin-top:10px">Add week ranges to blocks (below) to show the timeline.</div>';
     }
-    h += '</div><div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of ' + total + ' · faded = deload week</div>';
   } else {
     h += '<div class="muted" style="font-size:12px;margin-top:10px">' + D.routines.length + ' training days · simple program</div>';
   }
@@ -716,7 +720,7 @@ function programOverviewHtml() {
   if (periodized) {
     var pBlocks = Object.keys(D.program.blocks).map(function (k) { return parseInt(k, 10); }).sort(function (a, b) { return a - b; });
     pBlocks.forEach(function (b) {
-      var m = blockMeta(b), g = BLOCK_GOALS[String(b)] || {}, cur = blockOf(pr.week) === b;
+      var m = blockMeta(b), fb = BLOCK_GOALS[String(b)] || {}, g = { goal: m.goal || fb.goal, scheme: m.scheme || fb.scheme }, cur = blockOf(pr.week) === b;
       var nDays = blockRoutines(b).length;
       h += '<button class="rcard scard" onclick="progOpenBlock(' + b + ')">' +
         '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">Block ' + b + '</div>' +
@@ -734,7 +738,7 @@ function programOverviewHtml() {
   return h;
 }
 function programBlockHtml() {
-  var b = programBlock, m = blockMeta(b), g = BLOCK_GOALS[String(b)] || {};
+  var b = programBlock, m = blockMeta(b), fb = BLOCK_GOALS[String(b)] || {}, g = { goal: m.goal || fb.goal, scheme: m.scheme || fb.scheme };
   var h = '<div class="card"><button class="btn ghost sm" onclick="openProgram()" style="margin-bottom:12px">← Program</button>';
   h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">Block ' + b + '</div>';
   h += '<div style="font-weight:700;margin-top:2px">' + esc(m.phase || '') + '</div>';
@@ -817,7 +821,26 @@ function openEditProgram(id) {
   editProgramId = id;
   editProg = JSON.parse(JSON.stringify(p));
   if (!editProg.routines) editProg.routines = [];
+  if (!editProg.blocks) editProg.blocks = {};
+  // prefill any missing goal/scheme on the legacy blocks so they are visible + editable
+  Object.keys(editProg.blocks).forEach(function (k) {
+    var d = BLOCK_GOALS[k]; if (!d) return;
+    if (!editProg.blocks[k].goal) editProg.blocks[k].goal = d.goal;
+    if (!editProg.blocks[k].scheme) editProg.blocks[k].scheme = d.scheme;
+  });
   view = 'progEdit'; render(); window.scrollTo(0, 0);
+}
+function epAddBlock() {
+  if (!editProg.blocks) editProg.blocks = {};
+  var keys = Object.keys(editProg.blocks).map(function (k) { return parseInt(k, 10) || 0; });
+  var next = (keys.length ? Math.max.apply(null, keys) : 0) + 1;
+  editProg.blocks[String(next)] = { phase: '', weeks: '', deload: '', goal: '', scheme: '' };
+  render();
+}
+function epRemoveBlock(k) { delete editProg.blocks[k]; render(); }
+function epBlkInput(k, field, val, ph, numeric) {
+  return '<input value="' + esc(val == null ? '' : val) + '" placeholder="' + ph + '" ' + (numeric ? 'inputmode="numeric" ' : '') +
+    'oninput="editProg.blocks[\'' + k + '\'].' + field + '=this.value" style="width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;font-size:13px;margin-top:6px">';
 }
 function epAddDay() { editProg.routines.push({ id: 'd' + Date.now().toString(36), name: 'New Day', block: '', exercises: [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }] }); render(); }
 function epRemoveDay(di) { if (!confirm('Remove this day?')) return; editProg.routines.splice(di, 1); render(); }
@@ -862,8 +885,24 @@ function progEditHtml() {
   h += '<input value="' + esc(editProg.name) + '" oninput="editProg.name=this.value" style="' + inS + ';font-weight:700;margin-bottom:10px">';
   h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Method (optional)</label>';
   h += '<input value="' + esc(editProg.method || '') + '" oninput="editProg.method=this.value" placeholder="e.g. Double progression" style="' + inS + '">';
-  if (editProg.periodized) h += '<div class="muted" style="font-size:11px;margin-top:8px">Periodized — the small "blk" box sets each day’s block number; block phases/weeks stay as imported.</div>';
+  if (editProg.periodized) h += '<div class="muted" style="font-size:11px;margin-top:8px">Periodized — the small "blk" box sets each day’s block number; edit the blocks themselves below.</div>';
   h += '</div>';
+  // blocks (periodization) editor
+  h += '<div class="card"><div class="row"><h2 style="margin:0">Blocks</h2><button class="btn ghost sm" style="width:auto" onclick="epAddBlock()">+ Add block</button></div>';
+  var bkeys = Object.keys(editProg.blocks).map(function (k) { return parseInt(k, 10); }).sort(function (a, b) { return a - b; });
+  if (!bkeys.length) h += '<div class="muted" style="font-size:12px;margin-top:8px">No blocks = a simple program. Add a block to set phases, week ranges, deloads, and goals.</div>';
+  bkeys.forEach(function (bn) {
+    var k = String(bn);
+    h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">';
+    h += '<div class="row"><div style="font-weight:800;font-family:\'Archivo Expanded\',Archivo,sans-serif">Block ' + bn + '</div><button class="exbtn del" onclick="epRemoveBlock(\'' + k + '\')">✕</button></div>';
+    h += epBlkInput(k, 'phase', editProg.blocks[k].phase, 'Phase name (e.g. Hypertrophy)');
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' + epBlkInput(k, 'weeks', editProg.blocks[k].weeks, 'Weeks (e.g. 1-3)') + epBlkInput(k, 'deload', editProg.blocks[k].deload, 'Deload wk', true) + '</div>';
+    h += epBlkInput(k, 'scheme', editProg.blocks[k].scheme, 'Scheme (e.g. Compounds 8-10 @ RPE 7)');
+    h += '<textarea oninput="editProg.blocks[\'' + k + '\'].goal=this.value" placeholder="Goal / description" style="width:100%;height:64px;margin-top:6px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;font-size:13px">' + esc(editProg.blocks[k].goal || '') + '</textarea>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += '<div style="margin:14px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Days</h2></div>';
   editProg.routines.forEach(function (r, di) {
     h += '<div class="ex">';
     h += '<div class="row" style="gap:8px;align-items:center">';
