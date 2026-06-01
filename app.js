@@ -692,9 +692,7 @@ function programHtml() {
 function programOverviewHtml() {
   var pr = programProgress();
   var periodized = isPeriodized();
-  var h = '<div class="card"><div class="row" style="margin-bottom:12px">' +
-    '<button class="btn ghost sm" onclick="go(\'dash\')">← Back</button>' +
-    '<button class="btn ghost sm" onclick="openPrograms()">Programs ⇄</button></div>';
+  var h = '<div class="card"><button class="btn ghost sm" onclick="go(\'dash\')" style="margin-bottom:12px">← Back</button>';
   h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">' + esc(D.program.name) + '</div>';
   if (D.program.method) h += '<div class="muted" style="font-size:12.5px;margin-top:4px">' + esc(D.program.method) + '</div>';
   h += '<div class="muted" style="font-size:12.5px">' + esc(D.program.split) + '</div>';
@@ -818,6 +816,25 @@ function logMenuHtml() {
   h += '<button class="btn ghost" style="margin-top:8px" onclick="startBlank()">From scratch</button>';
   h += '<button class="btn ghost" style="margin-top:8px" onclick="setLogMode(\'template\')">From template' + (nT ? ' (' + nT + ')' : '') + '</button>';
   h += '</div>';
+  // Programs section: switch active / import / manage the library
+  h += '<div class="card"><div class="row"><h2 style="margin:0">Programs</h2>' +
+    '<button class="btn ghost sm" style="width:auto" onclick="toggleImport()">' + (importOpen ? 'Cancel' : '+ Import') + '</button></div>';
+  if (importOpen) {
+    h += '<textarea id="impText" placeholder="Paste program JSON…" spellcheck="false" autocapitalize="off" style="width:100%;height:140px;margin-top:10px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-family:monospace;font-size:12px"></textarea>';
+    h += '<button class="btn sm" style="margin-top:8px;width:100%" onclick="doImport()">Add program</button>';
+    h += '<div class="muted" style="font-size:11px;line-height:1.55;margin-top:10px">Keys: name, method, split (optional), blocks (optional, periodized), days[] — each day has name, optional block, and exercises[] with name, sets, reps, rpe, rest.</div>';
+  }
+  h += '</div>';
+  (D.programs || []).forEach(function (p) {
+    var active = p.id === D.activeProgramId;
+    h += '<div class="ex"><div class="row" style="align-items:flex-start"><div style="flex:1"><div class="name">' + esc(p.name) + (active ? ' <span class="pill accent">Active</span>' : '') + '</div>' +
+      '<div class="scheme">' + (p.routines ? p.routines.length : 0) + ' days · ' + (p.periodized ? 'periodized' : 'simple') + '</div></div></div>' +
+      '<div class="row" style="gap:8px;margin-top:10px">' +
+      (active ? '<button class="btn ghost sm" style="flex:1" onclick="openProgram()">View plan</button>'
+              : '<button class="btn sm" style="flex:1" onclick="setActiveProgram(\'' + p.id + '\')">Set active</button>') +
+      '<button class="btn ghost sm" onclick="deleteProgram(\'' + p.id + '\')" style="color:var(--bad)">Delete</button>' +
+      '</div></div>';
+  });
   return h;
 }
 function logTemplatesHtml() {
@@ -1286,9 +1303,6 @@ function settingsHtml() {
     '<button class="btn ghost" style="margin-top:8px" onclick="testSync()">Test connection (pull)</button>' +
     '<button class="btn ghost" style="margin-top:8px" onclick="pushNow()">Force push current data</button>' +
     '</div>';
-  h += '<div class="card"><h2>Programs</h2>' +
-    '<div class="muted" style="font-size:12.5px;line-height:1.5;margin-bottom:10px">Switch the active program, import a new one, or manage your library.</div>' +
-    '<button class="btn ghost" onclick="openPrograms()">Manage programs</button></div>';
   h += '<div class="card"><h2>Data</h2>' +
     '<div class="muted" style="font-size:12.5px;line-height:1.5;margin-bottom:10px">Source of truth is your Git repo. Local storage is a cache and may be cleared by iOS after long inactivity, so keep sync on.</div>' +
     '<button class="btn ghost" onclick="exportData()">Export workouts.json</button>' +
