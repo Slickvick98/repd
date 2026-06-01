@@ -36,7 +36,7 @@ function niceDate(iso) {
   return m[d.getMonth()] + ' ' + d.getDate();
 }
 function uid() { return 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); }
-function e1rm(w, r) { w = parseFloat(w); r = parseInt(r, 10); if (!w || !r) return 0; return Math.round(w * (1 + r / 30)); }
+function e1rm(w, r) { w = parseFloat(w); r = parseInt(r, 10); if (!w || !r) return 0; if (r <= 1) return Math.round(w); return Math.round(w * (1 + r / 30)); }
 
 function toast(msg) {
   var t = $('toast');
@@ -234,7 +234,7 @@ function bootData() {
 function recomputePRs() {
   var prs = {};
   var i, j, k;
-  for (i = 0; i < D.workouts.length; i++) {
+  for (i = 0; i < D.workouts.length; i++) {       // chronological (oldest first)
     var w = D.workouts[i];
     for (j = 0; j < w.exercises.length; j++) {
       var ex = w.exercises[j];
@@ -245,12 +245,11 @@ function recomputePRs() {
         if (!rp) continue;
         var wt = parseFloat(s.weight);
         var hasW = !isNaN(wt) && wt > 0;
-        var rec = prs[ex.name] || { bestWeight: 0, bestE1RM: 0, date: w.date, bestReps: 0, repsDate: w.date, bodyweight: false };
+        var rec = prs[ex.name] || { bestWeight: 0, bestE1RM: 0, date: w.date, bestReps: 0, repsDate: w.date, repsAtBest: 0, bodyweight: false };
         if (rp > rec.bestReps) { rec.bestReps = rp; rec.repsDate = w.date; }
         if (hasW) {
-          var est = e1rm(wt, rp);
-          if (wt > rec.bestWeight) rec.bestWeight = wt;
-          if (est > rec.bestE1RM) { rec.bestE1RM = est; rec.date = w.date; }
+          if (wt > rec.bestWeight) { rec.bestWeight = wt; rec.repsAtBest = rp; rec.date = w.date; }
+          else if (wt === rec.bestWeight) { if (rp > rec.repsAtBest) rec.repsAtBest = rp; rec.date = w.date; }
         } else {
           rec.bodyweight = true;
         }
@@ -258,7 +257,28 @@ function recomputePRs() {
       }
     }
   }
+  // est. 1RM is derived from the top-weight working set (1 rep => the weight itself)
+  Object.keys(prs).forEach(function (n) { var r = prs[n]; r.bestE1RM = r.bestWeight ? e1rm(r.bestWeight, r.repsAtBest) : 0; });
   D.prs = prs;
+}
+/* weight-PR progression: a point only when a new heaviest weight is logged */
+function weightPRSeries(name) {
+  var pts = [], maxW = 0, i, j, k;
+  var sorted = D.workouts.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+  for (i = 0; i < sorted.length; i++) {
+    var w = sorted[i], top = 0;
+    for (j = 0; j < w.exercises.length; j++) {
+      if (w.exercises[j].name !== name) continue;
+      var sets = w.exercises[j].sets;
+      for (k = 0; k < sets.length; k++) {
+        if (!sets[k].done) continue;
+        var wt = parseFloat(sets[k].weight), rp = parseInt(sets[k].reps, 10);
+        if (!isNaN(wt) && wt > 0 && rp && wt > top) top = wt;
+      }
+    }
+    if (top > maxW) { maxW = top; pts.push({ x: dayStr(w.date), y: maxW }); }
+  }
+  return pts;
 }
 /* max reps in a single set per session, chronological (for bodyweight lifts) */
 function repsSeries(name) {
@@ -906,7 +926,7 @@ function bodyHtml() {
       '<div style="text-align:right"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Top weight</div>' +
       '<div style="font-weight:700;font-size:18px;margin-top:4px">' + p.bestWeight + ' lb</div>' +
       '<div class="muted" style="font-size:11px">' + niceDate(p.date) + '</div></div></div>';
-    h += '<div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-top:14px">Estimated 1RM over time</div>';
+    h += '<div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-top:14px">Top weight over time (PRs)</div>';
   }
   h += '<canvas id="prChart" height="160" style="margin-top:8px"></canvas>';
   h += '</div>';
@@ -931,7 +951,7 @@ function drawBodyPRChart() {
   if (!bodyPR || !$('prChart')) return;
   var p = D.prs[bodyPR];
   if (isRepPR(p)) lineChart($('prChart'), repsSeries(bodyPR), getCss('--accent2'));
-  else lineChart($('prChart'), exerciseSeries(bodyPR), getCss('--accent'));
+  else lineChart($('prChart'), weightPRSeries(bodyPR), getCss('--accent'));
 }
 function logBW() {
   var v = parseFloat($('bwInput').value);
