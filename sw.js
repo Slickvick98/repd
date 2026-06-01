@@ -1,6 +1,6 @@
 /* Repd Fitness service worker: caches the app shell so the PWA opens offline.
    Data is NOT cached here on purpose: data lives in localStorage + Git. */
-var CACHE = 'repd-shell-v6';
+var CACHE = 'repd-shell-v7';
 var SHELL = [
   './',
   './index.html',
