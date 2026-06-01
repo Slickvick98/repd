@@ -835,7 +835,7 @@ function historySessionCard(w, idx) {
     '<div class="row"><div><div style="font-weight:700;font-size:16px">' + esc(w.name) + '</div>' +
     '<div class="muted" style="font-size:12.5px;margin-top:2px">' + niceDate(w.date) + ' · ' + w.exercises.length + ' exercises · ' + totalVolume(w).toLocaleString() + ' lb</div></div>' +
     (w.block ? '<span class="pill accent">Block ' + w.block + '</span>' : '') +
-    '</div></div>';
+    '</div></div></div>';
 }
 function deleteWorkout(idx) {
   var w = D.workouts[idx];
