@@ -94,6 +94,26 @@ input,select{font-family:inherit;font-size:16px}
   background:linear-gradient(0deg,var(--bg),rgba(14,15,18,0));pointer-events:none}
 .finishbar .inner{max-width:560px;margin:0 auto;pointer-events:auto}
 
+/* dashboard pinned start button */
+.startbar{position:fixed;left:0;right:0;bottom:calc(var(--tab) + var(--dock-bottom) + 8px);padding:10px 16px;
+  background:linear-gradient(0deg,var(--bg) 62%,transparent);pointer-events:none;z-index:35;display:none}
+.startbar .inner{max-width:560px;margin:0 auto;pointer-events:auto}
+
+/* progress bar */
+.pbar{height:7px;border-radius:999px;background:var(--bg3);overflow:hidden;margin-top:8px}
+.pbar > i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .3s ease}
+
+/* dashboard session card + tappable history row */
+.scard{display:block;width:100%;margin-bottom:8px}
+.hrow{width:100%;background:transparent;text-align:left;color:inherit;cursor:pointer}
+
+/* workout detail set lines */
+.setline{display:flex;align-items:center;gap:12px;margin-top:8px}
+.setline .lbl{color:var(--muted);font-size:13px;font-weight:700;flex:0 0 30px}
+.setline .val{flex:1;font-size:14px}
+.setok{color:var(--good);font-weight:700}
+.setno{color:var(--muted)}
+
 /* rest timer */
 .timer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab) + var(--dock-bottom) + 84px);
   background:var(--bg3);border:1px solid var(--line);border-radius:999px;padding:8px 16px;
@@ -163,6 +183,7 @@ a{color:var(--accent)}
 <div id="ptr" class="ptr"><span class="ptr-ic">&#8635;</span></div>
 <div id="app"><div class="empty">Loading&#8230;</div></div>
 <div id="timer" class="timer"></div>
+<div id="startbar" class="startbar"></div>
 <nav class="tabs" id="tabs"></nav>
 <div id="toast" class="toast"></div>
 <script src="app.js"></script>

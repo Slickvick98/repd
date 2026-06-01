@@ -14,6 +14,8 @@ var blockTab = 1;             // selected block in Log view
 var sync = { state: 'idle', msg: 'Not configured' };
 var timer = { id: null, left: 0 };
 var charts = {};
+var viewWorkout = null;        // index into D.workouts for detail view
+var workoutBackView = 'history'; // where the detail view returns to
 
 /* ---------- utilities ---------- */
 function $(id) { return document.getElementById(id); }
@@ -89,7 +91,9 @@ function ghPut(path, contentStr, message, sha) {
     });
 }
 
-function setSync(state, msg) { sync.state = state; sync.msg = msg; if (view === 'settings' || view === 'dash') renderSyncDot(); }
+function syncCls() { return sync.state === 'ok' ? 'ok' : sync.state === 'err' ? 'err' : sync.state === 'busy' ? 'busy' : ''; }
+function setSync(state, msg) { sync.state = state; sync.msg = msg; if (view === 'settings') renderSyncDot(); if (view === 'dash') renderSyncMini(); }
+function renderSyncMini() { var el = $('syncmini'); if (!el) return; el.className = 'dot ' + syncCls(); el.title = sync.msg; }
 
 /* Pull rolling JSON from Git on startup (so multiple devices stay current). */
 function pullFromGit() {
@@ -307,8 +311,21 @@ function render() {
   document.documentElement.setAttribute('data-theme', cfg.theme === 'light' ? 'light' : 'dark');
   $('app').innerHTML = topBar() + viewHtml();
   renderTabs();
+  renderStartBar();
+  if (view === 'dash') renderSyncMini();
   if (view === 'body') drawBodyCharts();
   if (view === 'progress') drawProgressChart();
+}
+function renderStartBar() {
+  var sb = $('startbar');
+  if (!sb) return;
+  if (view === 'dash' && !active && hasProgram()) {
+    sb.innerHTML = '<div class="inner"><button class="btn" onclick="go(\'log\')">Start a workout</button></div>';
+    sb.style.display = 'block';
+  } else {
+    sb.style.display = 'none';
+    sb.innerHTML = '';
+  }
 }
 
 function topBar() {
@@ -322,13 +339,13 @@ function topBar() {
 function renderSyncDot() {
   var el = $('syncdot');
   if (!el) return;
-  var cls = sync.state === 'ok' ? 'ok' : sync.state === 'err' ? 'err' : sync.state === 'busy' ? 'busy' : '';
-  el.innerHTML = '<span class="dot ' + cls + '"></span><span class="muted" style="font-size:12px">' + esc(sync.msg) + '</span>';
+  el.innerHTML = '<span class="dot ' + syncCls() + '"></span><span class="muted" style="font-size:12px">' + esc(sync.msg) + '</span>';
 }
 
 function viewHtml() {
   if (active) return logActiveHtml();
   if (view === 'dash') return dashHtml();
+  if (view === 'workout') return workoutHtml();
   if (view === 'log') return logPickerHtml();
   if (view === 'history') return historyHtml();
   if (view === 'body') return bodyHtml();
@@ -338,33 +355,71 @@ function viewHtml() {
 }
 
 /* ---------- Dashboard ---------- */
+function hasProgram() { return !!(D.program && D.program.name && D.routines && D.routines.length); }
+function splitOrder() { return ((D.program && D.program.split) || '').split('/').map(function (s) { return s.trim(); }).filter(Boolean); }
+function lastWorkout() { return D.workouts.length ? D.workouts[D.workouts.length - 1] : null; }
+function nextWorkoutName() {
+  var order = splitOrder(); if (!order.length) return null;
+  var last = lastWorkout(); if (!last) return order[0];
+  var idx = -1, i;
+  for (i = 0; i < order.length; i++) { if (order[i].toLowerCase() === String(last.name).toLowerCase()) { idx = i; break; } }
+  return idx === -1 ? order[0] : order[(idx + 1) % order.length];
+}
+function programProgress() {
+  if (!D.workouts.length) return { week: 1, total: 12, pct: 0, started: false };
+  var dates = D.workouts.map(function (w) { return new Date(w.date); }).sort(function (a, b) { return a - b; });
+  var weeks = Math.floor((Date.now() - dates[0].getTime()) / (7 * 24 * 3600 * 1000)) + 1;
+  if (weeks < 1) weeks = 1; if (weeks > 12) weeks = 12;
+  return { week: weeks, total: 12, pct: Math.round(weeks / 12 * 100), started: true };
+}
+
 function dashHtml() {
   var n = D.workouts.length;
-  var last = n ? D.workouts[n - 1] : null;
   var bw = D.bodyweight.length ? D.bodyweight[D.bodyweight.length - 1].value : '\u2014';
   var prCount = Object.keys(D.prs).length;
-  var streak = weekCount();
   var h = '';
-  h += '<div class="card"><div id="syncdot" class="row"></div></div>';
+  if (hasProgram()) {
+    var pr = programProgress();
+    var nextN = nextWorkoutName();
+    var last = lastWorkout();
+    var lblsm = 'font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)';
+    h += '<div class="card">';
+    h += '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">' + esc(D.program.name) + '</div>' +
+      '<span id="syncmini" class="dot"></span></div>';
+    h += '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(D.program.split) + '</div>';
+    h += '<div class="row" style="margin-top:12px"><span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">Week ' + pr.week + ' of ' + pr.total + '</span>' +
+      '<span class="mono" style="font-size:12px;color:var(--accent)">' + pr.pct + '%</span></div>';
+    h += '<div class="pbar"><i style="width:' + pr.pct + '%"></i></div>';
+    h += '<div class="row" style="margin-top:14px;gap:10px;align-items:center">' +
+      '<div style="flex:1"><div style="' + lblsm + '">Previous</div><div style="font-weight:700;margin-top:2px">' + (last ? esc(last.name) : '\u2014') + '</div>' +
+      (last ? '<div class="muted" style="font-size:11px">' + niceDate(last.date) + '</div>' : '') + '</div>' +
+      '<div style="color:var(--muted);font-size:18px">\u2192</div>' +
+      '<div style="flex:1;text-align:right"><div style="' + lblsm + '">Next</div><div style="font-weight:700;margin-top:2px;color:var(--accent)">' + (nextN ? esc(nextN.toUpperCase()) : '\u2014') + '</div></div>' +
+      '</div>';
+    h += '</div>';
+  }
   h += '<div class="grid">' +
     statCard(n, 'Workouts') +
     statCard(prCount, 'PRs tracked') +
-    statCard(streak, 'This week') +
+    statCard(weekCount(), 'This week') +
     statCard(bw, 'Bodyweight') +
     '</div>';
-  h += '<button class="btn" onclick="go(\'log\')" style="margin:6px 0 14px">Start a workout</button>';
-  if (last) {
-    h += '<div class="card"><h2>Last session</h2>' +
-      '<div class="row"><div><div style="font-weight:700;font-size:17px">' + esc(last.name) +
-      '</div><div class="muted" style="font-size:13px">' + niceDate(last.date) + ' \u00b7 ' +
-      last.exercises.length + ' exercises</div></div>' +
-      '<span class="pill accent">Block ' + (last.block || '?') + '</span></div></div>';
+  if (n) {
+    h += '<div style="margin:18px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Previous Sessions</h2></div>';
+    var sorted = D.workouts.map(function (w, i) { return { w: w, i: i }; }).reverse();
+    sorted.slice(0, 8).forEach(function (o) { h += sessionCard(o.w, o.i, 'dash'); });
+    if (sorted.length > 8) h += '<div class="muted" style="text-align:center;font-size:12px;margin-top:4px">See all ' + sorted.length + ' in History</div>';
+  } else {
+    h += emptyState('No sessions yet', 'Tap Start a workout to log your first.');
   }
-  h += '<div class="card"><h2>Program</h2>' +
-    '<div style="font-weight:700">' + esc(D.program.name) + '</div>' +
-    '<div class="muted" style="font-size:13px;margin-top:4px">' + esc(D.program.split) + '</div>' +
-    '<div class="muted" style="font-size:13px">' + esc(D.program.method) + '</div></div>';
+  h += '<div style="height:84px"></div>';
   return h;
+}
+function sessionCard(w, idx, from) {
+  return '<button class="rcard scard" onclick="openWorkout(' + idx + ',\'' + from + '\')">' +
+    '<div class="row"><div><div style="font-weight:700;font-size:16px">' + esc(w.name) + '</div>' +
+    '<div class="muted" style="font-size:12.5px;margin-top:2px">' + niceDate(w.date) + ' \u00b7 ' + w.exercises.length + ' exercises \u00b7 ' + totalVolume(w).toLocaleString() + ' lb</div></div>' +
+    '<span class="pill accent">Block ' + (w.block || '?') + '</span></div></button>';
 }
 function statCard(v, label) {
   return '<div class="card" style="margin:0"><div class="big">' + esc(v) + '</div>' +
@@ -374,6 +429,44 @@ function weekCount() {
   var now = new Date(); var monday = new Date(now);
   var day = (now.getDay() + 6) % 7; monday.setDate(now.getDate() - day); monday.setHours(0, 0, 0, 0);
   return D.workouts.filter(function (w) { return new Date(w.date) >= monday; }).length;
+}
+
+/* ---------- Workout detail (read-only view of a past session) ---------- */
+function openWorkout(idx, from) { viewWorkout = idx; workoutBackView = from || 'history'; view = 'workout'; render(); window.scrollTo(0, 0); }
+function workoutHtml() {
+  var w = D.workouts[viewWorkout];
+  if (!w) return emptyState('Not found', 'That session is unavailable.');
+  var h = '';
+  h += '<div class="card"><button class="btn ghost sm" onclick="go(\'' + workoutBackView + '\')" style="margin-bottom:12px">\u2190 Back</button>';
+  h += '<div class="row"><div><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:24px">' + esc(w.name) + '</div>' +
+    '<div class="muted" style="font-size:13px;margin-top:2px">' + niceDate(w.date) + ' \u00b7 Block ' + (w.block || '?') + ' \u00b7 ' + totalVolume(w).toLocaleString() + ' lb vol</div></div>' +
+    '<span class="pill accent">' + w.exercises.length + ' ex</span></div>';
+  var chips = [];
+  if (w.week) chips.push('Week ' + esc(w.week));
+  if (w.bodyweight) chips.push('BW ' + esc(w.bodyweight));
+  if (w.sleep) chips.push('Sleep ' + esc(w.sleep));
+  if (w.energy) chips.push('Energy ' + esc(w.energy));
+  if (chips.length) { h += '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">'; chips.forEach(function (c) { h += '<span class="pill">' + c + '</span>'; }); h += '</div>'; }
+  h += '</div>';
+  w.exercises.forEach(function (ex) {
+    h += '<div class="ex">';
+    h += '<div class="row"><div><div class="name">' + esc(ex.name) + '</div>' + (ex.scheme ? '<div class="scheme">' + esc(ex.scheme) + '</div>' : '') + '</div>';
+    if (ex.skipped) h += '<span class="pill" style="background:rgba(139,145,158,.18);color:var(--muted)">Skipped</span>';
+    else if (ex.superset) h += '<div class="ss">SS</div>';
+    h += '</div>';
+    if (!ex.skipped) {
+      (ex.sets || []).forEach(function (s, si) {
+        var val = (s.weight || '\u2014') + ' \u00d7 ' + (s.reps || '\u2014') + (s.rpe ? ' @ RPE ' + s.rpe : '');
+        h += '<div class="setline"><span class="lbl">S' + (si + 1) + '</span><span class="mono val">' + esc(val) + '</span>' +
+          '<span class="' + (s.done ? 'setok' : 'setno') + '">' + (s.done ? '\u2713' : '\u00b7') + '</span></div>';
+      });
+    }
+    if (ex.note) h += '<div class="muted" style="font-size:12px;margin-top:8px">' + esc(ex.note) + '</div>';
+    h += '</div>';
+  });
+  if (w.notes) h += '<div class="card"><h2>Post-session</h2><div>' + esc(w.notes) + '</div></div>';
+  h += '<div style="height:20px"></div>';
+  return h;
 }
 
 /* ---------- Log: routine picker ---------- */
@@ -535,12 +628,12 @@ function finishWorkout() {
 function historyHtml() {
   if (!D.workouts.length) return emptyState('No workouts yet', 'Start your first session from the Log tab.');
   var h = '<div class="card"><h2>History</h2>';
-  var sorted = D.workouts.slice().reverse();
-  sorted.forEach(function (w) {
-    var vol = totalVolume(w);
-    h += '<div class="hitem"><div><div style="font-weight:700">' + esc(w.name) +
+  var sorted = D.workouts.map(function (w, i) { return { w: w, i: i }; }).reverse();
+  sorted.forEach(function (o) {
+    var w = o.w, vol = totalVolume(w);
+    h += '<button class="hitem hrow" onclick="openWorkout(' + o.i + ',\'history\')"><div><div style="font-weight:700">' + esc(w.name) +
       '</div><div class="muted" style="font-size:12.5px">' + niceDate(w.date) + ' \u00b7 Block ' + (w.block || '?') + ' \u00b7 ' + vol.toLocaleString() + ' lb vol</div></div>' +
-      '<span class="pill accent">' + w.exercises.length + '</span></div>';
+      '<span class="pill accent">' + w.exercises.length + ' \u203a</span></button>';
   });
   h += '</div>';
   return h;
