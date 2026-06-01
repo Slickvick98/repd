@@ -424,6 +424,7 @@ function renderSyncDot() {
 function viewHtml() {
   if (active) return logActiveHtml();
   if (view === 'dash') return dashHtml();
+  if (view === 'program') return programHtml();
   if (view === 'workout') return workoutHtml();
   if (view === 'log') return logHtml();
   if (view === 'history') return historyHtml();
@@ -462,7 +463,7 @@ function dashHtml() {
     var nextN = nextWorkoutName();
     var last = lastWorkout();
     var lblsm = 'font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)';
-    h += '<div class="card">';
+    h += '<div class="card" onclick="openProgram()" style="cursor:pointer">';
     h += '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">' + esc(D.program.name) + '</div>' +
       '<span id="syncmini" class="dot"></span></div>';
     h += '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(D.program.split) + '</div>';
@@ -475,6 +476,7 @@ function dashHtml() {
       '<div style="color:var(--muted);font-size:18px">\u2192</div>' +
       '<div style="flex:1;text-align:right"><div style="' + lblsm + '">Next</div><div style="font-weight:700;margin-top:2px;color:var(--accent)">' + (nextN ? esc(nextN.toUpperCase()) : '\u2014') + '</div></div>' +
       '</div>';
+    h += '<div class="muted" style="font-size:11px;margin-top:14px;text-align:right">View full program \u203a</div>';
     h += '</div>';
   }
   h += '<div class="grid">' +
@@ -546,6 +548,97 @@ function workoutHtml() {
   });
   if (w.notes) h += '<div class="card"><h2>Post-session</h2><div>' + esc(w.notes) + '</div></div>';
   h += '<div style="height:20px"></div>';
+  return h;
+}
+
+/* ---------- Program explorer (drill-down: overview -> block -> day) ---------- */
+var programBlock = null, programDay = null;
+var BLOCK_GOALS = {
+  '1': { goal: 'Build the muscle base — moderate loads and higher reps. Add reps week to week, then add weight (double progression).', scheme: 'Compounds 8–10 · Isolation 12–15 · RPE 7–8' },
+  '2': { goal: 'Bridge hypertrophy into strength — heavier compounds while keeping solid volume on isolation work.', scheme: 'Compounds 6–8 · Isolation 8–12 · RPE 8' },
+  '3': { goal: 'Peak strength — low-rep heavy compounds at high effort; isolation work maintains muscle.', scheme: 'Compounds 4–6 · Isolation 6–10 · RPE 8–9' }
+};
+function blockMeta(b) { return (D.program.blocks && (D.program.blocks[b] || D.program.blocks[String(b)])) || {}; }
+function blockOf(week) { return week <= 4 ? 1 : week <= 8 ? 2 : 3; }
+function isDeloadWeek(week) { return week === 4 || week === 8 || week === 12; }
+function fmtRest(sec) { sec = parseInt(sec, 10) || 0; if (sec < 60) return sec + 's'; return Math.floor(sec / 60) + ':' + pad(sec % 60); }
+function blockRoutines(b) { return D.routines.filter(function (r) { return r.block === b; }); }
+function openProgram() { view = 'program'; programBlock = null; programDay = null; render(); window.scrollTo(0, 0); }
+function progOpenBlock(b) { programBlock = b; programDay = null; render(); window.scrollTo(0, 0); }
+function progOpenDay(rid) { programDay = rid; render(); window.scrollTo(0, 0); }
+
+function programHtml() {
+  if (!hasProgram()) return emptyState('No program', 'No active program is configured.');
+  if (programDay) return programDayHtml();
+  if (programBlock) return programBlockHtml();
+  return programOverviewHtml();
+}
+function programOverviewHtml() {
+  var pr = programProgress();
+  var h = '<div class="card"><button class="btn ghost sm" onclick="go(\'dash\')" style="margin-bottom:12px">← Back</button>';
+  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">' + esc(D.program.name) + '</div>';
+  h += '<div class="muted" style="font-size:12.5px;margin-top:4px">' + esc(D.program.method) + '</div>';
+  h += '<div class="muted" style="font-size:12.5px">' + esc(D.program.split) + '</div>';
+  h += '<div style="margin-top:14px;display:flex">';
+  for (var wk = 1; wk <= 12; wk++) {
+    var b = blockOf(wk), dl = isDeloadWeek(wk), cur = (wk === pr.week);
+    var bg = b === 1 ? 'var(--accent)' : b === 2 ? 'var(--accent2)' : 'var(--good)';
+    var style = 'flex:1;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0e0f12;background:' + bg + ';' +
+      (dl ? 'opacity:.4;' : '') + (cur ? 'outline:2px solid var(--txt);outline-offset:1px;' : '') + (wk > 1 ? 'margin-left:' + (wk % 4 === 1 ? '8' : '3') + 'px;' : '');
+    h += '<div style="' + style + '">' + wk + '</div>';
+  }
+  h += '</div>';
+  h += '<div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of 12 · faded = deload week</div>';
+  h += '</div>';
+  [1, 2, 3].forEach(function (b) {
+    var m = blockMeta(b), g = BLOCK_GOALS[String(b)] || {}, cur = blockOf(pr.week) === b;
+    h += '<button class="rcard scard" onclick="progOpenBlock(' + b + ')">' +
+      '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">Block ' + b + '</div>' +
+      (cur ? '<span class="pill accent">Current</span>' : '<span class="muted" style="font-size:18px">›</span>') + '</div>' +
+      '<div style="font-weight:700;margin-top:2px">' + esc(m.phase || '') + '</div>' +
+      '<div class="muted" style="font-size:12px;margin-top:2px">Weeks ' + esc(m.weeks || '') + ' · Deload wk ' + esc(m.deload || '') + ' · 5 days</div>' +
+      (g.goal ? '<div class="muted" style="font-size:12.5px;line-height:1.45;margin-top:8px">' + esc(g.goal) + '</div>' : '') +
+      '</button>';
+  });
+  h += '<div style="height:16px"></div>';
+  return h;
+}
+function programBlockHtml() {
+  var b = programBlock, m = blockMeta(b), g = BLOCK_GOALS[String(b)] || {};
+  var h = '<div class="card"><button class="btn ghost sm" onclick="openProgram()" style="margin-bottom:12px">← Program</button>';
+  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">Block ' + b + '</div>';
+  h += '<div style="font-weight:700;margin-top:2px">' + esc(m.phase || '') + '</div>';
+  h += '<div class="muted" style="font-size:12.5px;margin-top:2px">Weeks ' + esc(m.weeks || '') + ' · Deload week ' + esc(m.deload || '') + '</div>';
+  if (g.goal) h += '<div style="font-size:13px;line-height:1.5;margin-top:10px">' + esc(g.goal) + '</div>';
+  if (g.scheme) h += '<div style="margin-top:10px"><span class="pill">' + esc(g.scheme) + '</span></div>';
+  h += '</div>';
+  h += '<div style="margin:14px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Training days</h2></div>';
+  blockRoutines(b).forEach(function (r) {
+    h += '<button class="rcard scard" onclick="progOpenDay(\'' + r.id + '\')">' +
+      '<div class="row"><div><div style="font-weight:800;font-size:17px">' + esc(r.name) + '</div>' +
+      '<div class="muted" style="font-size:12px;margin-top:2px">' + r.exercises.length + ' exercises</div></div>' +
+      '<div style="display:flex;gap:8px;align-items:center">' +
+      (r.derived ? '<span class="pill derived">derived</span>' : '<span class="pill">from vault</span>') +
+      '<span class="muted" style="font-size:18px">›</span></div></div></button>';
+  });
+  h += '<div style="height:16px"></div>';
+  return h;
+}
+function programDayHtml() {
+  var r = D.routines.filter(function (x) { return x.id === programDay; })[0];
+  if (!r) return emptyState('Not found', 'That day is unavailable.');
+  var m = blockMeta(r.block);
+  var h = '<div class="card"><button class="btn ghost sm" onclick="progOpenBlock(' + r.block + ')" style="margin-bottom:12px">← Block ' + r.block + '</button>';
+  h += '<div class="row"><div><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:24px">' + esc(r.name) + '</div>' +
+    '<div class="muted" style="font-size:12.5px;margin-top:2px">Block ' + r.block + ' · ' + esc(m.phase || '') + '</div></div>' +
+    (r.derived ? '<span class="pill derived">derived</span>' : '<span class="pill">from vault</span>') + '</div>';
+  h += '<button class="btn" style="margin-top:12px" onclick="startWorkout(\'' + r.id + '\')">Start this workout</button></div>';
+  r.exercises.forEach(function (e, i) {
+    h += '<div class="ex"><div class="row"><div><div class="name">' + (i + 1) + '. ' + esc(e.name) + '</div>' +
+      '<div class="scheme">' + e.sets + ' × ' + esc(e.reps) + ' @ RPE ' + esc(e.rpe) + ' · rest ' + fmtRest(e.rest) + '</div></div>' +
+      (e.superset ? '<div class="ss">SS</div>' : '') + '</div></div>';
+  });
+  h += '<div style="height:16px"></div>';
   return h;
 }
 
