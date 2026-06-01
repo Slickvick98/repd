@@ -506,6 +506,7 @@ function viewHtml() {
   if (view === 'dash') return dashHtml();
   if (view === 'program') return programHtml();
   if (view === 'programs') return programsHtml();
+  if (view === 'progEdit') return progEditHtml();
   if (view === 'workout') return workoutHtml();
   if (view === 'log') return logHtml();
   if (view === 'history') return historyHtml();
@@ -649,6 +650,7 @@ function workoutHtml() {
 
 /* ---------- Program explorer (drill-down: overview -> block -> day) ---------- */
 var programBlock = null, programDay = null, importOpen = false;
+var editProg = null, editProgramId = null;
 var BLOCK_GOALS = {
   '1': { goal: 'Build the muscle base — moderate loads and higher reps. Add reps week to week, then add weight (double progression).', scheme: 'Compounds 8–10 · Isolation 12–15 · RPE 7–8' },
   '2': { goal: 'Bridge hypertrophy into strength — heavier compounds while keeping solid volume on isolation work.', scheme: 'Compounds 6–8 · Isolation 8–12 · RPE 8' },
@@ -802,6 +804,85 @@ function programsHtml() {
   return h;
 }
 
+/* ---------- Program editor (edit name/method/days/exercises in place) ---------- */
+function openEditProgram(id) {
+  var p = (D.programs || []).filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  editProgramId = id;
+  editProg = JSON.parse(JSON.stringify(p));
+  if (!editProg.routines) editProg.routines = [];
+  view = 'progEdit'; render(); window.scrollTo(0, 0);
+}
+function epAddDay() { editProg.routines.push({ id: 'd' + Date.now().toString(36), name: 'New Day', block: '', exercises: [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }] }); render(); }
+function epRemoveDay(di) { if (!confirm('Remove this day?')) return; editProg.routines.splice(di, 1); render(); }
+function epAddExercise(di) { editProg.routines[di].exercises.push({ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }); render(); }
+function epRemoveExercise(di, ei) { editProg.routines[di].exercises.splice(ei, 1); render(); }
+function saveProgramEdit() {
+  if (!editProg.name || !editProg.name.trim()) { toast('Name the program'); return; }
+  editProg.name = editProg.name.trim();
+  editProg.routines.forEach(function (r) {
+    r.name = (r.name || '').trim() || 'Day';
+    if (r.block === '' || r.block == null) { delete r.block; } else { r.block = parseInt(r.block, 10) || r.block; }
+    r.exercises = (r.exercises || []).filter(function (e) { return (e.name || '').trim(); }).map(function (e) {
+      return { name: e.name.trim(), type: e.type || '', sets: parseInt(e.sets, 10) || 3, reps: String(e.reps == null ? '' : e.reps), rpe: String(e.rpe == null ? '' : e.rpe), rest: parseInt(e.rest, 10) || 90 };
+    });
+  });
+  editProg.split = (editProg.split && editProg.split.trim()) ? editProg.split.trim() : deriveSplit(editProg.routines);
+  editProg.periodized = !!(editProg.blocks && Object.keys(editProg.blocks).length);
+  var idx = D.programs.map(function (p) { return p.id; }).indexOf(editProgramId);
+  if (idx >= 0) D.programs[idx] = editProg; else D.programs.push(editProg);
+  if (editProgramId === D.activeProgramId) applyActiveProgram();
+  cacheData();
+  toast('Program saved');
+  syncDataJson('edit program: ' + editProg.name);
+  editProg = null; editProgramId = null;
+  view = 'log'; logMode = 'menu'; render(); window.scrollTo(0, 0);
+}
+function cancelProgramEdit() { editProg = null; editProgramId = null; view = 'log'; logMode = 'menu'; render(); window.scrollTo(0, 0); }
+function epInput(di, ei, field, val, ph, numeric) {
+  return '<input value="' + esc(val == null ? '' : val) + '" placeholder="' + ph + '" ' + (numeric ? 'inputmode="numeric" ' : '') +
+    'oninput="editProg.routines[' + di + '].exercises[' + ei + '].' + field + '=this.value" class="mono" ' +
+    'style="width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px 4px;text-align:center;font-size:13px">';
+}
+function progEditHtml() {
+  if (!editProg) return emptyState('Nothing to edit', '');
+  var inS = 'width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px';
+  var h = '<div class="card"><div class="row" style="margin-bottom:12px">' +
+    '<button class="btn ghost sm" onclick="cancelProgramEdit()">Cancel</button>' +
+    '<button class="btn sm" onclick="saveProgramEdit()">Save</button></div>';
+  h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Program name</label>';
+  h += '<input value="' + esc(editProg.name) + '" oninput="editProg.name=this.value" style="' + inS + ';font-weight:700;margin-bottom:10px">';
+  h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Method (optional)</label>';
+  h += '<input value="' + esc(editProg.method || '') + '" oninput="editProg.method=this.value" placeholder="e.g. Double progression" style="' + inS + '">';
+  if (editProg.periodized) h += '<div class="muted" style="font-size:11px;margin-top:8px">Periodized — the small "blk" box sets each day’s block number; block phases/weeks stay as imported.</div>';
+  h += '</div>';
+  editProg.routines.forEach(function (r, di) {
+    h += '<div class="ex">';
+    h += '<div class="row" style="gap:8px;align-items:center">';
+    h += '<input value="' + esc(r.name) + '" oninput="editProg.routines[' + di + '].name=this.value" placeholder="Day name" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;font-weight:700">';
+    h += '<input value="' + esc(r.block == null ? '' : r.block) + '" oninput="editProg.routines[' + di + '].block=this.value" placeholder="blk" inputmode="numeric" style="width:46px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px 4px;text-align:center">';
+    h += '<button class="exbtn del" onclick="epRemoveDay(' + di + ')">✕</button>';
+    h += '</div>';
+    (r.exercises || []).forEach(function (e, ei) {
+      h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">';
+      h += '<div class="row" style="gap:8px"><input value="' + esc(e.name) + '" oninput="editProg.routines[' + di + '].exercises[' + ei + '].name=this.value" placeholder="Exercise name" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px">' +
+        '<button class="exbtn del" onclick="epRemoveExercise(' + di + ',' + ei + ')">✕</button></div>';
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:6px">' +
+        epInput(di, ei, 'sets', e.sets, 'sets', true) +
+        epInput(di, ei, 'reps', e.reps, 'reps', false) +
+        epInput(di, ei, 'rpe', e.rpe, 'rpe', false) +
+        epInput(di, ei, 'rest', e.rest, 'rest s', true) +
+        '</div>';
+      h += '</div>';
+    });
+    h += '<button class="btn ghost sm" style="margin-top:12px" onclick="epAddExercise(' + di + ')">+ exercise</button>';
+    h += '</div>';
+  });
+  h += '<button class="btn ghost" onclick="epAddDay()" style="margin-bottom:12px">+ Add day</button>';
+  h += '<div style="height:20px"></div>';
+  return h;
+}
+
 /* ---------- Log: chooser ---------- */
 function logHtml() {
   if (logMode === 'program') return logPickerHtml();
@@ -832,6 +913,7 @@ function logMenuHtml() {
       '<div class="row" style="gap:8px;margin-top:10px">' +
       (active ? '<button class="btn ghost sm" style="flex:1" onclick="openProgram()">View plan</button>'
               : '<button class="btn sm" style="flex:1" onclick="setActiveProgram(\'' + p.id + '\')">Set active</button>') +
+      '<button class="btn ghost sm" onclick="openEditProgram(\'' + p.id + '\')">Edit</button>' +
       '<button class="btn ghost sm" onclick="deleteProgram(\'' + p.id + '\')" style="color:var(--bad)">Delete</button>' +
       '</div></div>';
   });
