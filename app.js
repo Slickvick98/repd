@@ -93,6 +93,16 @@ function ghPut(path, contentStr, message, sha) {
 }
 
 function syncCls() { return sync.state === 'ok' ? 'ok' : sync.state === 'err' ? 'err' : sync.state === 'busy' ? 'busy' : ''; }
+function ghDelete(path, message, sha) {
+  return fetch(ghUrl(path), {
+    method: 'DELETE', headers: ghHeaders(),
+    body: JSON.stringify({ message: message, sha: sha, branch: cfg.branch })
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error('DELETE ' + r.status + ' ' + t); });
+    return r.json();
+  });
+}
+
 function setSync(state, msg) { sync.state = state; sync.msg = msg; if (view === 'settings') renderSyncDot(); if (view === 'dash') renderSyncMini(); }
 function renderSyncMini() { var el = $('syncmini'); if (!el) return; el.className = 'dot ' + syncCls(); el.title = sync.msg; }
 
@@ -335,6 +345,7 @@ function render() {
   renderTabs();
   renderStartBar();
   if (view === 'dash') renderSyncMini();
+  if (view === 'history') initHistorySwipe();
   if (view === 'body') drawBodyCharts();
   if (view === 'progress') drawProgressChart();
 }
@@ -756,8 +767,9 @@ function finishWorkout() {
 function historyHtml() {
   if (!D.workouts.length) return emptyState('No workouts yet', 'Start your first session from the Log tab.');
   var h = '<div style="margin:2px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">History</h2></div>';
+  h += '<div class="muted" style="font-size:11px;margin:0 2px 10px">Swipe a workout left to delete</div>';
   var sorted = D.workouts.map(function (w, i) { return { w: w, i: i }; }).reverse();
-  sorted.forEach(function (o) { h += sessionCard(o.w, o.i, 'history'); });
+  sorted.forEach(function (o) { h += historySessionCard(o.w, o.i); });
   h += '<div style="height:12px"></div>';
   return h;
 }
@@ -769,6 +781,68 @@ function totalVolume(w) {
     });
   });
   return Math.round(v);
+}
+function historySessionCard(w, idx) {
+  return '<div class="swipe-wrap">' +
+    '<button class="swipe-del" onclick="deleteWorkout(' + idx + ')" aria-label="Delete">✕</button>' +
+    '<div class="swipe-card rcard" data-idx="' + idx + '">' +
+    '<div class="row"><div><div style="font-weight:700;font-size:16px">' + esc(w.name) + '</div>' +
+    '<div class="muted" style="font-size:12.5px;margin-top:2px">' + niceDate(w.date) + ' · ' + w.exercises.length + ' exercises · ' + totalVolume(w).toLocaleString() + ' lb</div></div>' +
+    '<span class="pill accent">Block ' + (w.block || '?') + '</span></div>' +
+    '</div></div>';
+}
+function deleteWorkout(idx) {
+  var w = D.workouts[idx];
+  if (!w) return;
+  if (!confirm('Delete this ' + w.name + ' session (' + niceDate(w.date) + ')? This can’t be undone.')) return;
+  D.workouts.splice(idx, 1);
+  recomputePRs(); cacheData(); render();
+  toast('Workout deleted');
+  syncDataJson('delete workout: ' + w.name + ' ' + dayStr(w.date)).then(function () { return deleteLogFile(w); });
+}
+function deleteLogFile(w) {
+  if (!gitConfigured()) return Promise.resolve();
+  var fname = cfg.logsDir.replace(/\/$/, '') + '/' + dayStr(w.date) + '-' + w.name.toLowerCase() + '.md';
+  return ghGet(fname).then(function (r) {
+    if (r && r.sha) return ghDelete(fname, 'delete log: ' + fname, r.sha);
+  }).catch(function () {});
+}
+/* Swipe-left-to-reveal-delete on History cards. Distinguishes horizontal swipe
+   from vertical scroll / pull-to-refresh, and treats a no-move touch as a tap. */
+function initHistorySwipe() {
+  var cards = document.querySelectorAll('#app .swipe-card');
+  Array.prototype.forEach.call(cards, function (card) {
+    var idx = parseInt(card.getAttribute('data-idx'), 10);
+    var startX = 0, startY = 0, dx = 0, dragging = false, decided = false, horizontal = false, open = false;
+    var OPEN = -76, THRESH = 38;
+    function setX(x) { card.style.transform = 'translateX(' + x + 'px)'; }
+    function close() { open = false; card.style.transition = 'transform .2s ease'; setX(0); card.classList.remove('open'); }
+    function openCard() { open = true; card.style.transition = 'transform .2s ease'; setX(OPEN); card.classList.add('open'); }
+    card.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      dx = 0; dragging = true; decided = false; horizontal = false;
+      card.style.transition = '';
+    }, { passive: true });
+    card.addEventListener('touchmove', function (e) {
+      if (!dragging) return;
+      var ddx = e.touches[0].clientX - startX, ddy = e.touches[0].clientY - startY;
+      if (!decided && (Math.abs(ddx) > 8 || Math.abs(ddy) > 8)) { decided = true; horizontal = Math.abs(ddx) > Math.abs(ddy); }
+      if (!horizontal) return;
+      e.preventDefault(); e.stopPropagation();
+      dx = (open ? OPEN : 0) + ddx;
+      if (dx > 0) dx = 0; if (dx < OPEN - 16) dx = OPEN - 16;
+      setX(dx);
+    }, { passive: false });
+    function end() {
+      if (!dragging) return; dragging = false;
+      if (!decided) { if (open) close(); else openWorkout(idx, 'history'); return; }
+      if (!horizontal) return;
+      if (dx <= -THRESH) openCard(); else close();
+    }
+    card.addEventListener('touchend', end, { passive: true });
+    card.addEventListener('touchcancel', end, { passive: true });
+  });
 }
 
 /* ---------- Body (bodyweight + PRs) ---------- */

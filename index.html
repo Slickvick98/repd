@@ -114,6 +114,13 @@ input,select{font-family:inherit;font-size:16px}
 .setok{color:var(--good);font-weight:700}
 .setno{color:var(--muted)}
 
+/* history swipe-to-delete */
+.swipe-wrap{position:relative;overflow:hidden;border-radius:var(--r);margin-bottom:8px}
+.swipe-del{position:absolute;top:0;right:0;bottom:0;width:76px;border:none;background:var(--bad);color:#fff;
+  font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.swipe-card{position:relative;display:block;width:100%;text-align:left;margin:0;touch-action:pan-y;
+  background:var(--bg2);will-change:transform}
+
 /* in-workout exercise controls */
 .exbtn{background:var(--bg3);color:var(--muted);border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700}
 .exbtn.on{background:rgba(242,162,60,.16);color:var(--warn);border-color:transparent}
