@@ -830,12 +830,30 @@ function totalVolume(w) {
 }
 function historySessionCard(w, idx) {
   return '<div class="swipe-wrap">' +
-    '<button class="swipe-del" onclick="deleteWorkout(' + idx + ')" aria-label="Delete">✕</button>' +
+    '<button class="swipe-act swipe-tpl" onclick="saveWorkoutAsTemplate(' + idx + ')" aria-label="Save as template">Save<br>Template</button>' +
+    '<button class="swipe-act swipe-del" onclick="deleteWorkout(' + idx + ')" aria-label="Delete">✕</button>' +
     '<div class="swipe-card rcard" data-idx="' + idx + '">' +
     '<div class="row"><div><div style="font-weight:700;font-size:16px">' + esc(w.name) + '</div>' +
     '<div class="muted" style="font-size:12.5px;margin-top:2px">' + niceDate(w.date) + ' · ' + w.exercises.length + ' exercises · ' + totalVolume(w).toLocaleString() + ' lb</div></div>' +
     (w.block ? '<span class="pill accent">Block ' + w.block + '</span>' : '') +
     '</div></div></div>';
+}
+function saveWorkoutAsTemplate(idx) {
+  var w = D.workouts[idx];
+  if (!w) return;
+  var name = prompt('Template name', w.name || 'Template');
+  if (!name || !name.trim()) { render(); return; }
+  if (!D.templates) D.templates = [];
+  D.templates.push({
+    id: 't' + Date.now().toString(36),
+    name: name.trim(),
+    exercises: w.exercises.map(function (e) {
+      return { name: e.name, sets: (e.sets ? e.sets.length : 3), scheme: e.scheme || '', rest: e.rest || 60, superset: e.superset || null };
+    })
+  });
+  render();
+  toast('Saved as template');
+  syncDataJson('template from workout: ' + name.trim());
 }
 function deleteWorkout(idx) {
   var w = D.workouts[idx];
@@ -860,7 +878,7 @@ function initHistorySwipe() {
   Array.prototype.forEach.call(cards, function (card) {
     var idx = parseInt(card.getAttribute('data-idx'), 10);
     var startX = 0, startY = 0, dx = 0, dragging = false, decided = false, horizontal = false, open = false;
-    var OPEN = -78, THRESH = 40;
+    var OPEN = -144, THRESH = 60;
     var wrap = card.parentNode;
     function setX(x) { card.style.transform = 'translateX(' + x + 'px)'; }
     function close() { open = false; card.style.transition = 'transform .2s ease'; setX(0); card.classList.remove('open'); wrap.classList.remove('revealed'); }
