@@ -814,7 +814,7 @@ function initHistorySwipe() {
   Array.prototype.forEach.call(cards, function (card) {
     var idx = parseInt(card.getAttribute('data-idx'), 10);
     var startX = 0, startY = 0, dx = 0, dragging = false, decided = false, horizontal = false, open = false;
-    var OPEN = -76, THRESH = 38;
+    var OPEN = -78, THRESH = 40;
     function setX(x) { card.style.transform = 'translateX(' + x + 'px)'; }
     function close() { open = false; card.style.transition = 'transform .2s ease'; setX(0); card.classList.remove('open'); }
     function openCard() { open = true; card.style.transition = 'transform .2s ease'; setX(OPEN); card.classList.add('open'); }
