@@ -452,7 +452,7 @@ function sessionCard(w, idx, from) {
   return '<button class="rcard scard" onclick="openWorkout(' + idx + ',\'' + from + '\')">' +
     '<div class="row"><div><div style="font-weight:700;font-size:16px">' + esc(w.name) + '</div>' +
     '<div class="muted" style="font-size:12.5px;margin-top:2px">' + niceDate(w.date) + ' \u00b7 ' + w.exercises.length + ' exercises \u00b7 ' + totalVolume(w).toLocaleString() + ' lb</div></div>' +
-    '<span class="pill accent">Block ' + (w.block || '?') + '</span></div></button>';
+    (w.block ? '<span class="pill accent">Block ' + w.block + '</span>' : '') + '</div></button>';
 }
 function statCard(v, label) {
   return '<div class="card" style="margin:0"><div class="big">' + esc(v) + '</div>' +
@@ -473,7 +473,7 @@ function workoutHtml() {
   h += '<div class="card"><div class="row" style="margin-bottom:12px"><button class="btn ghost sm" onclick="go(\'' + workoutBackView + '\')">\u2190 Back</button>' +
     '<button class="btn sm" onclick="startEdit(' + viewWorkout + ')">Edit</button></div>';
   h += '<div class="row"><div><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:24px">' + esc(w.name) + '</div>' +
-    '<div class="muted" style="font-size:13px;margin-top:2px">' + niceDate(w.date) + ' \u00b7 Block ' + (w.block || '?') + ' \u00b7 ' + totalVolume(w).toLocaleString() + ' lb vol</div></div>' +
+    '<div class="muted" style="font-size:13px;margin-top:2px">' + niceDate(w.date) + (w.block ? ' \u00b7 Block ' + w.block : '') + ' \u00b7 ' + totalVolume(w).toLocaleString() + ' lb vol</div></div>' +
     '<span class="pill accent">' + w.exercises.length + ' ex</span></div>';
   var chips = [];
   if (w.week) chips.push('Week ' + esc(w.week));
@@ -788,7 +788,7 @@ function historySessionCard(w, idx) {
     '<div class="swipe-card rcard" data-idx="' + idx + '">' +
     '<div class="row"><div><div style="font-weight:700;font-size:16px">' + esc(w.name) + '</div>' +
     '<div class="muted" style="font-size:12.5px;margin-top:2px">' + niceDate(w.date) + ' · ' + w.exercises.length + ' exercises · ' + totalVolume(w).toLocaleString() + ' lb</div></div>' +
-    '<span class="pill accent">Block ' + (w.block || '?') + '</span></div>' +
+    (w.block ? '<span class="pill accent">Block ' + w.block + '</span>' : '') +
     '</div></div>';
 }
 function deleteWorkout(idx) {
