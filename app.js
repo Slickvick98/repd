@@ -693,6 +693,71 @@ function emptyState(title, sub) {
     '<div style="margin-top:6px">' + esc(sub) + '</div></div>';
 }
 
+/* ---------- pull to refresh ---------- */
+/* Custom top pull-to-refresh + rubber-band on every menu view. Disabled while a
+   workout is active so it never fights with logging inputs. Pulling past the
+   threshold re-pulls the rolling JSON from Git; a short pull bungees back. */
+function initPullToRefresh() {
+  var THRESH = 70, MAX = 120, DAMP = 0.5;
+  var appEl = $('app'), ind = $('ptr');
+  if (!appEl || !ind) return;
+  var ic = ind.querySelector('.ptr-ic');
+  var startY = 0, dist = 0, pulling = false, ready = false, refreshing = false;
+
+  function atTop() { return (window.scrollY || document.documentElement.scrollTop || 0) <= 0; }
+  function clearTransition() { appEl.style.transition = ''; ind.style.transition = ''; }
+  function animateBack() {
+    appEl.style.transition = 'transform .25s ease';
+    ind.style.transition = 'opacity .25s ease, transform .25s ease';
+    appEl.style.transform = '';
+    ind.style.opacity = '0';
+    ind.style.transform = 'translateX(-50%) translateY(0)';
+    setTimeout(clearTransition, 260);
+  }
+  function reset() { if (dist !== 0) { appEl.style.transform = ''; ind.style.opacity = '0'; dist = 0; ready = false; ind.classList.remove('ready'); } }
+
+  document.addEventListener('touchstart', function (e) {
+    if (refreshing || active || e.touches.length !== 1 || !atTop()) { pulling = false; return; }
+    startY = e.touches[0].clientY; pulling = true; dist = 0; ready = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    if (!pulling || refreshing) return;
+    var dy = e.touches[0].clientY - startY;
+    if (dy <= 0 || !atTop()) { reset(); return; }
+    e.preventDefault();
+    dist = Math.min(MAX, dy * DAMP);
+    appEl.style.transform = 'translateY(' + dist + 'px)';
+    ind.style.opacity = '' + Math.min(1, dist / THRESH);
+    ind.style.transform = 'translateX(-50%) translateY(' + Math.min(dist, THRESH + 6) + 'px)';
+    if (ic) ic.style.transform = 'rotate(' + Math.round(dist * 2.6) + 'deg)';
+    ready = dist >= THRESH;
+    ind.classList.toggle('ready', ready);
+  }, { passive: false });
+
+  function end() {
+    if (!pulling || refreshing) { pulling = false; return; }
+    pulling = false;
+    if (!ready) { animateBack(); return; }
+    refreshing = true;
+    ind.classList.remove('ready'); ind.classList.add('spinning');
+    appEl.style.transition = 'transform .2s ease';
+    appEl.style.transform = 'translateY(52px)';
+    ind.style.transition = 'transform .2s ease, opacity .2s ease';
+    ind.style.opacity = '1';
+    ind.style.transform = 'translateX(-50%) translateY(52px)';
+    if (ic) ic.style.transform = '';
+    var finish = function () { refreshing = false; ready = false; ind.classList.remove('spinning'); animateBack(); };
+    var task = gitConfigured() ? pullFromGit() : Promise.resolve();
+    task.then(function () {
+      recomputePRs(); cacheData(); render();
+      if (gitConfigured()) toast('Refreshed');
+    }).catch(function () {}).then(function () { setTimeout(finish, 350); });
+  }
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', function () { if (pulling && !refreshing) { pulling = false; animateBack(); } }, { passive: true });
+}
+
 /* ---------- boot ---------- */
 function boot() {
   loadCfg();
@@ -702,6 +767,7 @@ function boot() {
   }).then(function () {
     recomputePRs(); cacheData(); render();
   });
+  initPullToRefresh();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
