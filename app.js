@@ -861,9 +861,10 @@ function initHistorySwipe() {
     var idx = parseInt(card.getAttribute('data-idx'), 10);
     var startX = 0, startY = 0, dx = 0, dragging = false, decided = false, horizontal = false, open = false;
     var OPEN = -78, THRESH = 40;
+    var wrap = card.parentNode;
     function setX(x) { card.style.transform = 'translateX(' + x + 'px)'; }
-    function close() { open = false; card.style.transition = 'transform .2s ease'; setX(0); card.classList.remove('open'); }
-    function openCard() { open = true; card.style.transition = 'transform .2s ease'; setX(OPEN); card.classList.add('open'); }
+    function close() { open = false; card.style.transition = 'transform .2s ease'; setX(0); card.classList.remove('open'); wrap.classList.remove('revealed'); }
+    function openCard() { open = true; card.style.transition = 'transform .2s ease'; setX(OPEN); card.classList.add('open'); wrap.classList.add('revealed'); }
     card.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) return;
       startX = e.touches[0].clientX; startY = e.touches[0].clientY;
@@ -876,6 +877,7 @@ function initHistorySwipe() {
       if (!decided && (Math.abs(ddx) > 8 || Math.abs(ddy) > 8)) { decided = true; horizontal = Math.abs(ddx) > Math.abs(ddy); }
       if (!horizontal) return;
       e.preventDefault(); e.stopPropagation();
+      wrap.classList.add('revealed');
       dx = (open ? OPEN : 0) + ddx;
       if (dx > 0) dx = 0; if (dx < OPEN - 16) dx = OPEN - 16;
       setX(dx);
