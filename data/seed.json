@@ -1,0 +1,1026 @@
+{
+  "version": 1,
+  "program": {
+    "name": "12-Week Progressive Overload",
+    "split": "Push / Pull / Legs / Upper / Lower",
+    "method": "Double progression, RPE-based",
+    "blocks": {
+      "1": {
+        "phase": "Hypertrophy Foundation",
+        "weeks": "1-3",
+        "deload": 4
+      },
+      "2": {
+        "phase": "Hypertrophy + Strength",
+        "weeks": "5-7",
+        "deload": 8
+      },
+      "3": {
+        "phase": "Strength Peak",
+        "weeks": "9-11",
+        "deload": 12
+      }
+    }
+  },
+  "workouts": [],
+  "prs": {},
+  "bodyweight": [],
+  "splits": [],
+  "routines": [
+    {
+      "id": "b1-push",
+      "name": "PUSH",
+      "block": 1,
+      "phase": "Hypertrophy Foundation",
+      "weeks": "1-3",
+      "deloadWeek": 4,
+      "derived": false,
+      "exercises": [
+        {
+          "name": "Barbell Bench Press",
+          "type": "strength",
+          "sets": 4,
+          "reps": "8-10",
+          "rpe": "7",
+          "rest": 120
+        },
+        {
+          "name": "Standing Barbell OHP",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "7",
+          "rest": 90
+        },
+        {
+          "name": "Incline DB Bench Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "7-8",
+          "rest": 90
+        },
+        {
+          "name": "Cable Chest Flys",
+          "type": "strength",
+          "sets": 3,
+          "reps": "12-15",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "DB Lateral Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "12-15",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Tricep Pressdowns",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60
+        }
+      ]
+    },
+    {
+      "id": "b1-pull",
+      "name": "PULL",
+      "block": 1,
+      "phase": "Hypertrophy Foundation",
+      "weeks": "1-3",
+      "deloadWeek": 4,
+      "derived": false,
+      "exercises": [
+        {
+          "name": "Pull-ups",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-10",
+          "rpe": "7",
+          "rest": 120
+        },
+        {
+          "name": "Barbell Row",
+          "type": "strength",
+          "sets": 4,
+          "reps": "8-10",
+          "rpe": "7",
+          "rest": 90
+        },
+        {
+          "name": "DB Row",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "7-8",
+          "rest": 90
+        },
+        {
+          "name": "Face Pulls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "12-15",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Standard DB Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Hammer Curls",
+          "type": "strength",
+          "sets": 2,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60
+        }
+      ]
+    },
+    {
+      "id": "b1-legs",
+      "name": "LEGS",
+      "block": 1,
+      "phase": "Hypertrophy Foundation",
+      "weeks": "1-3",
+      "deloadWeek": 4,
+      "derived": false,
+      "exercises": [
+        {
+          "name": "Back Squat",
+          "type": "strength",
+          "sets": 4,
+          "reps": "8-10",
+          "rpe": "7",
+          "rest": 150
+        },
+        {
+          "name": "Hack Squat",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "7-8",
+          "rest": 90
+        },
+        {
+          "name": "Walking Lunges",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "7-8",
+          "rest": 90
+        },
+        {
+          "name": "Leg Extensions",
+          "type": "strength",
+          "sets": 3,
+          "reps": "12-15",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Hamstring Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Hanging Leg Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-15",
+          "rpe": "8",
+          "rest": 60
+        }
+      ]
+    },
+    {
+      "id": "b1-upper",
+      "name": "UPPER",
+      "block": 1,
+      "phase": "Hypertrophy Foundation",
+      "weeks": "1-3",
+      "deloadWeek": 4,
+      "derived": false,
+      "exercises": [
+        {
+          "name": "Incline Barbell Bench Press",
+          "type": "strength",
+          "sets": 4,
+          "reps": "8-10",
+          "rpe": "7",
+          "rest": 120
+        },
+        {
+          "name": "T-Bar Row",
+          "type": "strength",
+          "sets": 4,
+          "reps": "8-10",
+          "rpe": "7",
+          "rest": 90
+        },
+        {
+          "name": "Seated DB Shoulder Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "7-8",
+          "rest": 90
+        },
+        {
+          "name": "Lat Pulldown",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "7-8",
+          "rest": 90
+        },
+        {
+          "name": "Lateral Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "12-15",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Rear Delt Flys"
+        },
+        {
+          "name": "Rear Delt Flys",
+          "type": "strength",
+          "sets": 3,
+          "reps": "12-15",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Lateral Raises"
+        },
+        {
+          "name": "Skull Crushers",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "DB Curls"
+        },
+        {
+          "name": "DB Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Skull Crushers"
+        }
+      ]
+    },
+    {
+      "id": "b1-lower",
+      "name": "LOWER",
+      "block": 1,
+      "phase": "Hypertrophy Foundation",
+      "weeks": "1-3",
+      "deloadWeek": 4,
+      "derived": false,
+      "exercises": [
+        {
+          "name": "Deadlift",
+          "type": "strength",
+          "sets": 4,
+          "reps": "5-7",
+          "rpe": "7",
+          "rest": 180
+        },
+        {
+          "name": "Romanian Deadlift",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "7-8",
+          "rest": 90
+        },
+        {
+          "name": "Hamstring Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Back Extensions",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "GHD Sit-ups",
+          "type": "strength",
+          "sets": 3,
+          "reps": "12-15",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Pallof Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60
+        }
+      ]
+    },
+    {
+      "id": "b2-push",
+      "name": "PUSH",
+      "block": 2,
+      "phase": "Hypertrophy + Strength",
+      "weeks": "5-7",
+      "deloadWeek": 8,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Barbell Bench Press",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 120,
+          "derived": true
+        },
+        {
+          "name": "Standing Barbell OHP",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Incline DB Bench Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Cable Chest Flys",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "DB Lateral Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Tricep Pressdowns",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b2-pull",
+      "name": "PULL",
+      "block": 2,
+      "phase": "Hypertrophy + Strength",
+      "weeks": "5-7",
+      "deloadWeek": 8,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Pull-ups",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 120,
+          "derived": true
+        },
+        {
+          "name": "Barbell Row",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "DB Row",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Face Pulls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Standard DB Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Hammer Curls",
+          "type": "strength",
+          "sets": 2,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b2-legs",
+      "name": "LEGS",
+      "block": 2,
+      "phase": "Hypertrophy + Strength",
+      "weeks": "5-7",
+      "deloadWeek": 8,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Back Squat",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 150,
+          "derived": true
+        },
+        {
+          "name": "Hack Squat",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Walking Lunges",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Leg Extensions",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Hamstring Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Hanging Leg Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b2-upper",
+      "name": "UPPER",
+      "block": 2,
+      "phase": "Hypertrophy + Strength",
+      "weeks": "5-7",
+      "deloadWeek": 8,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Incline Barbell Bench Press",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 120,
+          "derived": true
+        },
+        {
+          "name": "T-Bar Row",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Seated DB Shoulder Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Lat Pulldown",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Lateral Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Rear Delt Flys",
+          "derived": true
+        },
+        {
+          "name": "Rear Delt Flys",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Lateral Raises",
+          "derived": true
+        },
+        {
+          "name": "Skull Crushers",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "DB Curls",
+          "derived": true
+        },
+        {
+          "name": "DB Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Skull Crushers",
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b2-lower",
+      "name": "LOWER",
+      "block": 2,
+      "phase": "Hypertrophy + Strength",
+      "weeks": "5-7",
+      "deloadWeek": 8,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Deadlift",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 180,
+          "derived": true
+        },
+        {
+          "name": "Romanian Deadlift",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-8",
+          "rpe": "8",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Hamstring Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Back Extensions",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "GHD Sit-ups",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Pallof Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-12",
+          "rpe": "8",
+          "rest": 60,
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b3-push",
+      "name": "PUSH",
+      "block": 3,
+      "phase": "Strength Peak",
+      "weeks": "9-11",
+      "deloadWeek": 12,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Barbell Bench Press",
+          "type": "strength",
+          "sets": 4,
+          "reps": "4-6",
+          "rpe": "8-9",
+          "rest": 120,
+          "derived": true
+        },
+        {
+          "name": "Standing Barbell OHP",
+          "type": "strength",
+          "sets": 3,
+          "reps": "4-6",
+          "rpe": "8-9",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Incline DB Bench Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Cable Chest Flys",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "DB Lateral Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Tricep Pressdowns",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b3-pull",
+      "name": "PULL",
+      "block": 3,
+      "phase": "Strength Peak",
+      "weeks": "9-11",
+      "deloadWeek": 12,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Pull-ups",
+          "type": "strength",
+          "sets": 4,
+          "reps": "4-6",
+          "rpe": "8-9",
+          "rest": 120,
+          "derived": true
+        },
+        {
+          "name": "Barbell Row",
+          "type": "strength",
+          "sets": 4,
+          "reps": "4-6",
+          "rpe": "8-9",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "DB Row",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Face Pulls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Standard DB Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Hammer Curls",
+          "type": "strength",
+          "sets": 2,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b3-legs",
+      "name": "LEGS",
+      "block": 3,
+      "phase": "Strength Peak",
+      "weeks": "9-11",
+      "deloadWeek": 12,
+      "derived": true,
+      "exercises": [
+        {
+          "name": "Back Squat",
+          "type": "strength",
+          "sets": 4,
+          "reps": "4-6",
+          "rpe": "8-9",
+          "rest": 150,
+          "derived": true
+        },
+        {
+          "name": "Hack Squat",
+          "type": "strength",
+          "sets": 3,
+          "reps": "4-6",
+          "rpe": "8-9",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Walking Lunges",
+          "type": "strength",
+          "sets": 3,
+          "reps": "4-6",
+          "rpe": "8-9",
+          "rest": 90,
+          "derived": true
+        },
+        {
+          "name": "Leg Extensions",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Hamstring Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        },
+        {
+          "name": "Hanging Leg Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-10",
+          "rpe": "8-9",
+          "rest": 60,
+          "derived": true
+        }
+      ]
+    },
+    {
+      "id": "b3-upper",
+      "name": "UPPER",
+      "block": 3,
+      "phase": "Strength Peak",
+      "weeks": "9-11",
+      "deloadWeek": 12,
+      "derived": false,
+      "exercises": [
+        {
+          "name": "Incline Barbell Bench Press",
+          "type": "strength",
+          "sets": 4,
+          "reps": "5-7",
+          "rpe": "8-9",
+          "rest": 120
+        },
+        {
+          "name": "T-Bar Row",
+          "type": "strength",
+          "sets": 4,
+          "reps": "6-8",
+          "rpe": "8-9",
+          "rest": 120
+        },
+        {
+          "name": "Seated DB Shoulder Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "5-7",
+          "rpe": "8",
+          "rest": 90
+        },
+        {
+          "name": "Lat Pulldown",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "8",
+          "rest": 90
+        },
+        {
+          "name": "Lateral Raises",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8-9",
+          "rest": 60,
+          "superset": "Rear Delt Flys"
+        },
+        {
+          "name": "Rear Delt Flys",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8-9",
+          "rest": 60,
+          "superset": "Lateral Raises"
+        },
+        {
+          "name": "Skull Crushers",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Hammer Curls"
+        },
+        {
+          "name": "Hammer Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "8",
+          "rest": 60,
+          "superset": "Skull Crushers"
+        }
+      ]
+    },
+    {
+      "id": "b3-lower",
+      "name": "LOWER",
+      "block": 3,
+      "phase": "Strength Peak",
+      "weeks": "9-11",
+      "deloadWeek": 12,
+      "derived": false,
+      "exercises": [
+        {
+          "name": "Deadlift",
+          "type": "strength",
+          "sets": 4,
+          "reps": "3-5",
+          "rpe": "8-9",
+          "rest": 180
+        },
+        {
+          "name": "Romanian Deadlift",
+          "type": "strength",
+          "sets": 4,
+          "reps": "5-7",
+          "rpe": "8",
+          "rest": 120
+        },
+        {
+          "name": "Hamstring Curls",
+          "type": "strength",
+          "sets": 3,
+          "reps": "6-8",
+          "rpe": "8-9",
+          "rest": 60
+        },
+        {
+          "name": "Back Extensions",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "GHD Sit-ups",
+          "type": "strength",
+          "sets": 3,
+          "reps": "10-12",
+          "rpe": "8",
+          "rest": 60
+        },
+        {
+          "name": "Pallof Press",
+          "type": "strength",
+          "sets": 3,
+          "reps": "8-10",
+          "rpe": "8",
+          "rest": 60
+        }
+      ]
+    }
+  ]
+}

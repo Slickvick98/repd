@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="theme-color" content="#0e0f12" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Repd" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<title>Repd Fitness</title>
+<style>
+:root{
+  --bg:#0e0f12; --bg2:#16181d; --bg3:#1d2027; --line:#2a2e37;
+  --txt:#eef0f3; --muted:#8b919e; --accent:#e6543c; --accent2:#f2a23c;
+  --good:#3ecf8e; --warn:#f2a23c; --bad:#e6543c;
+  --r:14px; --tab:64px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+}
+[data-theme="light"]{
+  --bg:#f4f5f7; --bg2:#ffffff; --bg3:#eceef2; --line:#dcdfe6;
+  --txt:#15171c; --muted:#5d636f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+  font-family:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
+h1,h2,h3{font-family:"Archivo Expanded","Archivo",sans-serif;letter-spacing:-0.01em;margin:0}
+.mono{font-family:"IBM Plex Mono","SFMono-Regular",ui-monospace,Menlo,monospace}
+button{font-family:inherit;cursor:pointer;border:none}
+input,select{font-family:inherit;font-size:16px}
+
+#app{max-width:560px;margin:0 auto;padding:calc(var(--safe-t) + 12px) 16px calc(var(--tab) + var(--safe-b) + 24px)}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand .logo{font-family:"Archivo Expanded","Archivo",sans-serif;font-weight:800;
+  font-size:26px;color:var(--accent);line-height:1}
+.brand .sub{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.14em}
+.iconbtn{background:var(--bg3);color:var(--txt);width:40px;height:40px;border-radius:11px;
+  font-size:17px;display:grid;place-items:center}
+
+/* cards */
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.card h2{font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:12px;font-weight:700}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.muted{color:var(--muted)}
+.pill{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  padding:3px 8px;border-radius:999px;background:var(--bg3);color:var(--muted)}
+.pill.accent{background:rgba(230,84,60,.16);color:var(--accent)}
+.pill.derived{background:rgba(242,162,60,.16);color:var(--warn)}
+.big{font-size:40px;font-weight:800;font-family:"Archivo Expanded","Archivo",sans-serif;line-height:1}
+
+/* buttons */
+.btn{background:var(--accent);color:#fff;border-radius:12px;padding:14px 16px;font-weight:700;font-size:15px;width:100%}
+.btn.ghost{background:var(--bg3);color:var(--txt)}
+.btn.sm{padding:9px 12px;font-size:13px;width:auto}
+.btn:active{transform:translateY(1px)}
+.btn[disabled]{opacity:.5}
+
+/* routine grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rcard{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:14px;text-align:left}
+.rcard .day{font-family:"Archivo Expanded","Archivo",sans-serif;font-weight:800;font-size:20px}
+.rcard .meta{color:var(--muted);font-size:12px;margin-top:2px}
+.blocknav{display:flex;gap:8px;margin-bottom:12px}
+.blocknav button{flex:1;background:var(--bg3);color:var(--muted);border-radius:11px;padding:10px;font-weight:700;font-size:13px}
+.blocknav button.on{background:var(--accent);color:#fff}
+
+/* exercise log */
+.ex{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:10px}
+.ex .name{font-weight:700;font-size:16px}
+.ex .scheme{color:var(--muted);font-size:12.5px;margin-top:2px}
+.ss{font-size:11px;color:var(--accent2);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.setrow{display:grid;grid-template-columns:30px 1fr 1fr 54px 40px;gap:8px;align-items:center;margin-top:10px}
+.setrow .lbl{color:var(--muted);font-size:13px;font-weight:700}
+.setrow input{width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);
+  border-radius:10px;padding:11px 8px;text-align:center}
+.setrow input::placeholder{color:var(--muted);opacity:.6}
+.chk{width:40px;height:40px;border-radius:10px;background:var(--bg3);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:16px;color:var(--muted)}
+.chk.on{background:var(--good);color:#06150e;border-color:var(--good)}
+.fieldhead{display:grid;grid-template-columns:30px 1fr 1fr 54px 40px;gap:8px;margin-top:6px}
+.fieldhead span{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;text-align:center}
+
+/* sticky finish bar */
+.finishbar{position:fixed;left:0;right:0;bottom:calc(var(--tab) + var(--safe-b));padding:10px 16px;
+  background:linear-gradient(0deg,var(--bg),rgba(14,15,18,0));pointer-events:none}
+.finishbar .inner{max-width:560px;margin:0 auto;pointer-events:auto}
+
+/* rest timer */
+.timer{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab) + var(--safe-b) + 78px);
+  background:var(--bg3);border:1px solid var(--line);border-radius:999px;padding:8px 16px;
+  font-weight:800;font-size:15px;display:none;align-items:center;gap:10px;z-index:30}
+.timer.on{display:flex}
+.timer button{background:transparent;color:var(--muted);font-size:18px}
+
+/* history */
+.hitem{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.hitem:last-child{border-bottom:none}
+
+/* inputs block */
+.field{margin-bottom:12px}
+.field label{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.field input,.field select{width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px}
+
+/* chart */
+canvas{width:100%;display:block}
+
+/* sync status dot */
+.dot{width:8px;height:8px;border-radius:999px;display:inline-block;margin-right:6px;background:var(--muted)}
+.dot.ok{background:var(--good)} .dot.err{background:var(--bad)} .dot.busy{background:var(--warn)}
+
+/* bottom tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;height:calc(var(--tab) + var(--safe-b));
+  padding-bottom:var(--safe-b);background:var(--bg2);border-top:1px solid var(--line);
+  display:flex;z-index:40}
+.tabs button{flex:1;background:transparent;color:var(--muted);font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.tabs button .ic{font-size:19px}
+.tabs button.on{color:var(--accent)}
+
+.toast{position:fixed;left:50%;bottom:calc(var(--tab) + var(--safe-b) + 16px);transform:translateX(-50%);
+  background:var(--txt);color:var(--bg);padding:11px 16px;border-radius:11px;font-weight:700;font-size:13px;
+  z-index:60;opacity:0;transition:opacity .2s;max-width:90%;text-align:center}
+.toast.on{opacity:1}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+a{color:var(--accent)}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700&family=Archivo+Expanded:wght@800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="app"><div class="empty">Loading&#8230;</div></div>
+<div id="timer" class="timer"></div>
+<nav class="tabs" id="tabs"></nav>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
