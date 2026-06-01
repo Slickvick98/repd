@@ -1,6 +1,8 @@
-/* Repd Fitness service worker: caches the app shell so the PWA opens offline.
-   Data is NOT cached here on purpose: data lives in localStorage + Git. */
-var CACHE = 'repd-shell-v10';
+/* Repd Fitness service worker.
+   Strategy: NETWORK-FIRST for our own assets so updates always show when online;
+   the cache is only an offline fallback. (Cache-first caused stale PWAs on iOS.)
+   GitHub API calls are never touched here; data lives in localStorage + Git. */
+var CACHE = 'repd-shell-v11';
 var SHELL = [
   './',
   './index.html',
@@ -27,13 +29,24 @@ self.addEventListener('activate', function (e) {
 });
 
 self.addEventListener('fetch', function (e) {
+  if (e.request.method !== 'GET') { return; }
   var url = new URL(e.request.url);
   // Never cache GitHub API calls: those must always hit the network.
   if (url.hostname === 'api.github.com') { return; }
-  // App shell: cache-first, fall back to network.
+  // Only manage our own origin's assets.
+  if (url.origin !== self.location.origin) { return; }
+  // Network-first: fresh when online, cached copy as offline fallback.
   e.respondWith(
-    caches.match(e.request).then(function (hit) {
-      return hit || fetch(e.request);
+    fetch(e.request).then(function (res) {
+      if (res && res.ok) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
+      }
+      return res;
+    }).catch(function () {
+      return caches.match(e.request).then(function (hit) {
+        return hit || caches.match('./index.html');
+      });
     })
   );
 });
