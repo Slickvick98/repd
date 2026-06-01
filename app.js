@@ -429,8 +429,8 @@ function dashHtml() {
   if (n) {
     h += '<div style="margin:18px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Previous Sessions</h2></div>';
     var sorted = D.workouts.map(function (w, i) { return { w: w, i: i }; }).reverse();
-    sorted.slice(0, 8).forEach(function (o) { h += sessionCard(o.w, o.i, 'dash'); });
-    if (sorted.length > 8) h += '<div class="muted" style="text-align:center;font-size:12px;margin-top:4px">See all ' + sorted.length + ' in History</div>';
+    sorted.slice(0, 3).forEach(function (o) { h += sessionCard(o.w, o.i, 'dash'); });
+    if (sorted.length > 3) h += '<div class="muted" style="text-align:center;font-size:12px;margin-top:4px">See all ' + sorted.length + ' in History</div>';
   } else {
     h += emptyState('No sessions yet', 'Tap Start a workout to log your first.');
   }
@@ -755,15 +755,10 @@ function finishWorkout() {
 /* ---------- History ---------- */
 function historyHtml() {
   if (!D.workouts.length) return emptyState('No workouts yet', 'Start your first session from the Log tab.');
-  var h = '<div class="card"><h2>History</h2>';
+  var h = '<div style="margin:2px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">History</h2></div>';
   var sorted = D.workouts.map(function (w, i) { return { w: w, i: i }; }).reverse();
-  sorted.forEach(function (o) {
-    var w = o.w, vol = totalVolume(w);
-    h += '<button class="hitem hrow" onclick="openWorkout(' + o.i + ',\'history\')"><div><div style="font-weight:700">' + esc(w.name) +
-      '</div><div class="muted" style="font-size:12.5px">' + niceDate(w.date) + ' \u00b7 Block ' + (w.block || '?') + ' \u00b7 ' + vol.toLocaleString() + ' lb vol</div></div>' +
-      '<span class="pill accent">' + w.exercises.length + ' \u203a</span></button>';
-  });
-  h += '</div>';
+  sorted.forEach(function (o) { h += sessionCard(o.w, o.i, 'history'); });
+  h += '<div style="height:12px"></div>';
   return h;
 }
 function totalVolume(w) {
