@@ -253,7 +253,7 @@ function activeProgram() {
 /* mirror the active program into D.program / D.routines so every view works unchanged */
 function applyActiveProgram() {
   var p = activeProgram();
-  if (!p) return;
+  if (!p) { D.program = { name: '', method: '', split: '', blocks: {} }; D.routines = []; D.activeProgramId = null; return; }
   D.activeProgramId = p.id;
   D.program = { name: p.name, method: p.method || '', split: p.split || deriveSplit(p.routines), blocks: p.blocks || {} };
   D.routines = JSON.parse(JSON.stringify(p.routines || []));
@@ -480,7 +480,7 @@ function render() {
 function renderStartBar() {
   var sb = $('startbar');
   if (!sb) return;
-  if (view === 'dash' && !active && hasProgram()) {
+  if (view === 'dash' && !active) {
     sb.innerHTML = '<div class="inner"><button class="btn" onclick="go(\'log\')">Start a workout</button></div>';
     sb.style.display = 'block';
   } else {

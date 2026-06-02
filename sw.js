@@ -2,7 +2,7 @@
    Strategy: NETWORK-FIRST for our own assets so updates always show when online;
    the cache is only an offline fallback. (Cache-first caused stale PWAs on iOS.)
    GitHub API calls are never touched here; data lives in localStorage + Git. */
-var CACHE = 'repd-shell-v28';
+var CACHE = 'repd-shell-v29';
 var SHELL = [
   './',
   './index.html',
