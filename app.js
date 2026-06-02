@@ -217,6 +217,7 @@ function ensureData() {
   if (!D.bodyweight) D.bodyweight = [];
   if (!D.splits) D.splits = [];
   if (!D.templates) D.templates = [];
+  if (!D.skips) D.skips = [];
   // ---- programs library migration ----
   if (!D.programs) {
     D.programs = [];
@@ -260,6 +261,7 @@ function applyActiveProgram() {
 function setActiveProgram(id) {
   D.activeProgramId = id;
   D.programStart = dayStr(todayISO());   // new activation resets the week clock
+  D.skips = [];                          // skips are per-program
   applyActiveProgram();
   recomputePRs(); cacheData();
   view = 'program'; programBlock = null; programDay = null;
@@ -522,15 +524,58 @@ function splitOrder() { return ((D.program && D.program.split) || '').split('/')
 function lastWorkout() { return D.workouts.length ? D.workouts[D.workouts.length - 1] : null; }
 /* Next workout: follow the active program's actual day order, staying within the
    current block for periodized programs; advance from the last logged day. */
+/* most recent program action — a logged workout OR a skip, whichever is later */
+function lastProgramAction() {
+  var lw = lastWorkout();
+  var ls = (D.skips && D.skips.length) ? D.skips[D.skips.length - 1] : null;
+  if (lw && ls) return new Date(ls.date) >= new Date(lw.date) ? ls : lw;
+  return lw || ls || null;
+}
 function nextRoutine() {
   var routines = isPeriodized() ? blockRoutines(blockOf(programProgress().week)) : D.routines;
   if (!routines || !routines.length) routines = D.routines;
   if (!routines || !routines.length) return null;
-  var last = lastWorkout();
+  var last = lastProgramAction();
   if (!last) return routines[0];
   var idx = -1, i;
   for (i = 0; i < routines.length; i++) { if (routines[i].name.toLowerCase() === String(last.name).toLowerCase()) { idx = i; break; } }
   return idx === -1 ? routines[0] : routines[(idx + 1) % routines.length];
+}
+function skipNext() {
+  var r = nextRoutine();
+  if (!r) return;
+  if (!confirm('Skip ' + r.name + '? It won’t count toward completion, and Next will move on.')) return;
+  if (!D.skips) D.skips = [];
+  D.skips.push({ date: todayISO(), name: r.name, block: r.block || '' });
+  cacheData(); render();
+  toast('Skipped ' + r.name);
+  syncDataJson('skip: ' + r.name);
+}
+function undoLastSkip() {
+  if (!D.skips || !D.skips.length) return;
+  var s = D.skips.pop();
+  cacheData(); render();
+  toast('Undid skip: ' + s.name);
+  syncDataJson('undo skip');
+}
+function nextWorkoutCard() {
+  if (!hasProgram()) return '';
+  var r = nextRoutine();
+  if (!r) return '';
+  var m = isPeriodized() ? blockMeta(r.block) : {};
+  var sub = (r.block ? 'Block ' + r.block + (m.phase ? ' · ' + m.phase : '') + ' · ' : '') + r.exercises.length + ' exercises';
+  var h = '<div class="card">';
+  h += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Up next</div>';
+  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px;margin-top:2px">' + esc(r.name) + '</div>';
+  h += '<div class="muted" style="font-size:12.5px;margin-top:2px">' + esc(sub) + '</div>';
+  h += '<div class="row" style="gap:10px;margin-top:12px"><button class="btn" style="flex:2" onclick="startWorkout(\'' + r.id + '\')">Start ' + esc(r.name) + '</button>' +
+    '<button class="btn ghost" style="flex:1" onclick="skipNext()">Skip</button></div>';
+  if (D.skips && D.skips.length) {
+    var ls = D.skips[D.skips.length - 1];
+    h += '<div class="muted" style="font-size:11px;margin-top:10px;text-align:center" onclick="undoLastSkip()">Last skipped: ' + esc(ls.name) + ' · <span style="color:var(--accent)">undo</span></div>';
+  }
+  h += '</div>';
+  return h;
 }
 function nextWorkoutName() { var r = nextRoutine(); return r ? r.name : null; }
 function programTotalWeeks() {
@@ -607,6 +652,7 @@ function dashHtml() {
     h += '<div class="muted" style="font-size:11px;margin-top:14px;text-align:right">View full program \u203a</div>';
     h += '</div>';
   }
+  h += nextWorkoutCard();
   h += '<div class="grid">' +
     statCard(n, 'Workouts') +
     statCard(prCount, 'PRs tracked') +
@@ -971,7 +1017,9 @@ function logHtml() {
 function setLogMode(m) { logMode = m; render(); window.scrollTo(0, 0); }
 function logMenuHtml() {
   var nT = (D.templates || []).length;
-  var h = '<div class="card"><h2>Start a workout</h2>';
+  var h = '';
+  if (hasProgram()) h += nextWorkoutCard();
+  h += '<div class="card"><h2>Start a workout</h2>';
   h += '<button class="btn" onclick="setLogMode(\'program\')">From program</button>';
   h += '<button class="btn ghost" style="margin-top:8px" onclick="startBlank()">From scratch</button>';
   h += '<button class="btn ghost" style="margin-top:8px" onclick="setLogMode(\'template\')">From template' + (nT ? ' (' + nT + ')' : '') + '</button>';
