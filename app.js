@@ -520,13 +520,19 @@ function viewHtml() {
 function hasProgram() { return !!(D.program && D.program.name && D.routines && D.routines.length); }
 function splitOrder() { return ((D.program && D.program.split) || '').split('/').map(function (s) { return s.trim(); }).filter(Boolean); }
 function lastWorkout() { return D.workouts.length ? D.workouts[D.workouts.length - 1] : null; }
-function nextWorkoutName() {
-  var order = splitOrder(); if (!order.length) return null;
-  var last = lastWorkout(); if (!last) return order[0];
+/* Next workout: follow the active program's actual day order, staying within the
+   current block for periodized programs; advance from the last logged day. */
+function nextRoutine() {
+  var routines = isPeriodized() ? blockRoutines(blockOf(programProgress().week)) : D.routines;
+  if (!routines || !routines.length) routines = D.routines;
+  if (!routines || !routines.length) return null;
+  var last = lastWorkout();
+  if (!last) return routines[0];
   var idx = -1, i;
-  for (i = 0; i < order.length; i++) { if (order[i].toLowerCase() === String(last.name).toLowerCase()) { idx = i; break; } }
-  return idx === -1 ? order[0] : order[(idx + 1) % order.length];
+  for (i = 0; i < routines.length; i++) { if (routines[i].name.toLowerCase() === String(last.name).toLowerCase()) { idx = i; break; } }
+  return idx === -1 ? routines[0] : routines[(idx + 1) % routines.length];
 }
+function nextWorkoutName() { var r = nextRoutine(); return r ? r.name : null; }
 function programTotalWeeks() {
   var b = D.program && D.program.blocks; if (!b) return 0;
   var max = 0;
@@ -545,6 +551,29 @@ function programProgress() {
   if (total && weeks > total) weeks = total;
   return { week: weeks, total: total, pct: total ? Math.round(weeks / total * 100) : 0, periodized: isPeriodized() };
 }
+/* total planned sessions across the whole program (sum of each week's block day-count) */
+function plannedSessionsTotal() {
+  var total = programTotalWeeks();
+  if (!total) return 0;
+  var n = 0, w;
+  for (w = 1; w <= total; w++) {
+    var days = blockRoutines(blockOf(w)).length;
+    if (!days) days = D.routines.length;
+    n += days;
+  }
+  return n;
+}
+/* sessions logged since this program became active */
+function completedSessions() {
+  if (!D.programStart) return D.workouts.length;
+  var start = new Date(D.programStart);
+  return D.workouts.filter(function (w) { return new Date(w.date) >= start; }).length;
+}
+function completionPct() {
+  var planned = plannedSessionsTotal();
+  if (!planned) return 0;
+  return Math.min(100, Math.round(completedSessions() / planned * 100));
+}
 
 function dashHtml() {
   var n = D.workouts.length;
@@ -561,9 +590,11 @@ function dashHtml() {
       '<span id="syncmini" class="dot"></span></div>';
     h += '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(D.program.split) + '</div>';
     if (pr.total > 0) {
+      var done = completedSessions(), planned = plannedSessionsTotal(), cpct = completionPct();
       h += '<div class="row" style="margin-top:12px"><span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">Week ' + pr.week + ' of ' + pr.total + '</span>' +
-        '<span class="mono" style="font-size:12px;color:var(--accent)">' + pr.pct + '%</span></div>';
+        '<span class="mono" style="font-size:12px;color:var(--accent)">' + cpct + '% done</span></div>';
       h += '<div class="pbar"><i style="width:' + pr.pct + '%"></i></div>';
+      h += '<div class="muted" style="font-size:11px;margin-top:6px">' + done + ' / ' + planned + ' sessions completed</div>';
     } else {
       h += '<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:12px">' + D.routines.length + ' training days</div>';
     }
@@ -709,7 +740,8 @@ function programOverviewHtml() {
         h += '<div style="' + style + '">' + wk + '</div>';
         prevBlock = b;
       }
-      h += '</div><div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of ' + total + ' · faded = deload week</div>';
+      h += '</div><div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of ' + total + ' · faded = deload week</div>' +
+        '<div class="muted" style="font-size:11px;margin-top:4px">' + completedSessions() + ' / ' + plannedSessionsTotal() + ' sessions completed (' + completionPct() + '%)</div>';
     } else {
       h += '<div class="muted" style="font-size:11px;margin-top:10px">Add week ranges to blocks (below) to show the timeline.</div>';
     }
