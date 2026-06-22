@@ -1493,8 +1493,8 @@ function drawBodyCharts() {
   var yMin = null, yMax = null;
   if (pts.length) {
     var ys = pts.map(function (p) { return p.y; });
-    yMin = Math.max(0, Math.min.apply(null, ys) - 50);   // ~50 lb below lowest, centers the line
-    yMax = Math.max.apply(null, ys) + 25;                // ~25 lb above highest
+    yMin = Math.max(0, Math.min.apply(null, ys) - 10);   // 10 lb below lowest
+    yMax = Math.max.apply(null, ys) + 5;                 // 5 lb above highest
   }
   lineChart($('bwChart'), pts, getCss('--accent2'), yMin, yMax);
 }
