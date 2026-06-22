@@ -5,6 +5,7 @@
 
 var CFG_KEY = 'repd_cfg';
 var DATA_KEY = 'repd_data';
+var ACTIVE_KEY = 'repd_active';   // in-progress workout, persisted so a lock/reload doesn't lose it
 
 var D = null;                 // app data (source of truth, mirrored to Git)
 var cfg = null;               // settings
@@ -60,6 +61,8 @@ function loadCfg() {
 }
 function saveCfg() { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
 function cacheData() { localStorage.setItem(DATA_KEY, JSON.stringify(D)); }
+function saveActive() { try { if (active) localStorage.setItem(ACTIVE_KEY, JSON.stringify(active)); else localStorage.removeItem(ACTIVE_KEY); } catch (e) {} }
+function clearActive() { active = null; try { localStorage.removeItem(ACTIVE_KEY); } catch (e) {} }
 
 function gitConfigured() { return !!(cfg.token && cfg.owner && cfg.repo); }
 
@@ -401,7 +404,7 @@ function exerciseSeries(name) {
 }
 
 /* ---------- minimal canvas line chart (no deps, offline-safe) ---------- */
-function lineChart(canvas, pts, color) {
+function lineChart(canvas, pts, color, yMinO, yMaxO) {
   if (!canvas) return;
   var dpr = window.devicePixelRatio || 1;
   var cssW = canvas.clientWidth || 300, cssH = 160;
@@ -417,6 +420,8 @@ function lineChart(canvas, pts, color) {
   var pad = 26, pl = 34;
   var ys = pts.map(function (p) { return p.y; });
   var ymin = Math.min.apply(null, ys), ymax = Math.max.apply(null, ys);
+  if (yMinO != null) ymin = yMinO;
+  if (yMaxO != null) ymax = yMaxO;
   if (ymin === ymax) { ymin = ymin - 5; ymax = ymax + 5; }
   var pr = pad - 6;
   function X(i) { return pl + (cssW - pl - pad) * (pts.length === 1 ? 0.5 : i / (pts.length - 1)); }
@@ -1107,6 +1112,7 @@ function makeActive(name, block, exList) {
     })
   };
   prefillLastWeights(active);
+  saveActive();
   view = 'log'; render(); window.scrollTo(0, 0);
 }
 function startWorkout(rid) {
@@ -1135,20 +1141,21 @@ function startEdit(idx) {
   active = JSON.parse(JSON.stringify(w));
   active.editIndex = idx;
   active.exercises.forEach(function (e) { if (!e.sets) e.sets = []; });
+  saveActive();
   stopTimer(); view = 'log'; render(); window.scrollTo(0, 0);
 }
 function addExercise() {
   var name = prompt('Exercise name');
   if (!name || !name.trim()) return;
   active.exercises.push({ name: name.trim(), superset: null, rest: 60, scheme: '', note: '', sets: [{ weight: '', reps: '', rpe: '', done: false }] });
-  render();
+  saveActive(); render();
 }
 function removeExercise(ei) {
   if (!confirm('Remove ' + active.exercises[ei].name + '?')) return;
-  active.exercises.splice(ei, 1); render();
+  active.exercises.splice(ei, 1); saveActive(); render();
 }
-function toggleSkip(ei) { active.exercises[ei].skipped = !active.exercises[ei].skipped; render(); }
-function removeSet(ei) { var ex = active.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); render(); } }
+function toggleSkip(ei) { active.exercises[ei].skipped = !active.exercises[ei].skipped; saveActive(); render(); }
+function removeSet(ei) { var ex = active.exercises[ei]; if (ex.sets.length > 1) { ex.sets.pop(); saveActive(); render(); } }
 function saveAsTemplate() {
   var name = prompt('Template name', active.name || 'My Template');
   if (!name || !name.trim()) return;
@@ -1252,23 +1259,30 @@ function inp(ei, si, field, val, ph) {
   return '<input class="mono" inputmode="decimal" value="' + esc(val) + '" placeholder="' + esc(ph) + '" ' +
     'oninput="setField(' + ei + ',' + si + ',\'' + field + '\',this.value)">';
 }
-function setField(ei, si, field, val) { active.exercises[ei].sets[si][field] = val; }
+function setField(ei, si, field, val) { active.exercises[ei].sets[si][field] = val; saveActive(); }
 function toggleSet(ei, si) {
-  var s = active.exercises[ei].sets[si];
+  var ex = active.exercises[ei];
+  var s = ex.sets[si];
   s.done = !s.done;
+  // checking a set with blank inputs assumes you did the prefilled (last week's) weight/reps
+  if (s.done && ex.prev) {
+    if (s.weight === '' || s.weight == null) s.weight = ex.prev.weight;
+    if (s.reps === '' || s.reps == null) s.reps = ex.prev.reps;
+  }
+  saveActive();
   render();
-  if (s.done && active.editIndex == null) { startTimer(active.exercises[ei].rest || 60); }
+  if (s.done && active.editIndex == null) { startTimer(ex.rest || 60); }
 }
 function addSet(ei) {
   var ex = active.exercises[ei];
   ex.sets.push({ weight: '', reps: '', rpe: '', done: false });
-  render();
+  saveActive(); render();
 }
 function cancelWorkout() {
   var isEdit = active.editIndex != null;
   if (!confirm(isEdit ? 'Discard changes to this workout?' : 'Discard this workout? Nothing will be saved.')) return;
   var idx = active.editIndex;
-  active = null; stopTimer();
+  clearActive(); stopTimer();
   if (isEdit) { viewWorkout = idx; view = 'workout'; } else { view = 'log'; logMode = 'menu'; }
   render();
 }
@@ -1289,7 +1303,7 @@ function finishWorkout() {
   if (isEdit) { D.workouts[idx] = clean; } else { D.workouts.push(clean); }
   recomputePRs();
   cacheData();
-  active = null; stopTimer();
+  clearActive(); stopTimer();
   if (isEdit) { viewWorkout = idx; view = 'workout'; } else { view = 'history'; }
   render();
   pushWorkout(clean);
@@ -1476,7 +1490,13 @@ function logBW() {
 function drawBodyCharts() {
   var pts = D.bodyweight.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; })
     .map(function (b) { return { x: b.date, y: b.value }; });
-  lineChart($('bwChart'), pts, getCss('--accent2'));
+  var yMin = null, yMax = null;
+  if (pts.length) {
+    var ys = pts.map(function (p) { return p.y; });
+    yMin = Math.max(0, Math.min.apply(null, ys) - 50);   // ~50 lb below lowest, centers the line
+    yMax = Math.max.apply(null, ys) + 25;                // ~25 lb above highest
+  }
+  lineChart($('bwChart'), pts, getCss('--accent2'), yMin, yMax);
 }
 
 /* ---------- Progress (per exercise) ---------- */
@@ -1565,7 +1585,7 @@ function renderTabs() {
 function go(v) {
   if (active && v !== 'log') {
     if (!confirm('Leave the active workout? It will be discarded.')) return;
-    active = null; stopTimer();
+    clearActive(); stopTimer();
   }
   if (v === 'log' && !active) logMode = 'menu';
   view = v; render(); window.scrollTo(0, 0);
@@ -1642,15 +1662,34 @@ function initPullToRefresh() {
   document.addEventListener('touchcancel', function () { if (pulling && !refreshing) { pulling = false; animateBack(); } }, { passive: true });
 }
 
+/* restore an in-progress workout that was interrupted (phone lock / app reload) */
+function restoreActive() {
+  try {
+    var a = JSON.parse(localStorage.getItem(ACTIVE_KEY));
+    if (a && a.exercises && a.exercises.length >= 0) { active = a; view = 'log'; }
+  } catch (e) {}
+}
+/* persist the active workout when the app backgrounds and on any input change */
+function initActivePersist() {
+  var save = function () { if (active) saveActive(); };
+  document.addEventListener('visibilitychange', save);
+  window.addEventListener('pagehide', save);
+  window.addEventListener('blur', save);
+  var t = null;
+  document.addEventListener('input', function () { if (!active) return; clearTimeout(t); t = setTimeout(save, 400); }, { passive: true });
+}
+
 /* ---------- boot ---------- */
 function boot() {
   loadCfg();
+  restoreActive();
   bootData().then(function () {
     render();
     return pullFromGit();
   }).then(function () {
     recomputePRs(); cacheData(); render();
   });
+  initActivePersist();
   initPullToRefresh();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then(function (reg) { try { reg.update(); } catch (e) {} }).catch(function () {});
