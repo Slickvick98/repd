@@ -782,6 +782,7 @@ function workoutHtml() {
 /* ---------- Program explorer (drill-down: overview -> block -> day) ---------- */
 var programBlock = null, programDay = null, importOpen = false;
 var editProg = null, editProgramId = null;
+var viewProgramId = null, programBackTo = 'dash';   // explorer: which program + where Back returns
 var BLOCK_GOALS = {
   '1': { goal: 'Build the muscle base — moderate loads and higher reps. Add reps week to week, then add weight (double progression).', scheme: 'Compounds 8–10 · Isolation 12–15 · RPE 7–8' },
   '2': { goal: 'Bridge hypertrophy into strength — heavier compounds while keeping solid volume on isolation work.', scheme: 'Compounds 6–8 · Isolation 8–12 · RPE 8' },
@@ -812,48 +813,77 @@ function progDayCard(r) {
 }
 function fmtRest(sec) { sec = parseInt(sec, 10) || 0; if (sec < 60) return sec + 's'; return Math.floor(sec / 60) + ':' + pad(sec % 60); }
 function blockRoutines(b) { return D.routines.filter(function (r) { return r.block === b; }); }
-function openProgram() { view = 'program'; programBlock = null; programDay = null; render(); window.scrollTo(0, 0); }
+/* the program the explorer is currently showing (active mirror, or a previewed one) */
+function explorerProgram() {
+  if (viewProgramId) { var p = (D.programs || []).filter(function (x) { return x.id === viewProgramId; })[0]; if (p) return p; }
+  return { name: D.program.name, method: D.program.method, split: D.program.split, blocks: D.program.blocks, routines: D.routines };
+}
+function pIsPeriodized(prog) { return !!(prog.blocks && Object.keys(prog.blocks).length); }
+function pBlockMeta(prog, b) { var bl = prog.blocks || {}; return bl[b] || bl[String(b)] || {}; }
+function pBlockRoutines(prog, b) { return (prog.routines || []).filter(function (r) { return r.block === b; }); }
+function pTotalWeeks(prog) {
+  var b = prog.blocks || {}, max = 0;
+  Object.keys(b).forEach(function (k) { var dl = parseInt(b[k].deload, 10) || 0; if (dl > max) max = dl; var p = String(b[k].weeks || '').split('-'); var hi = parseInt(p[p.length - 1], 10) || 0; if (hi > max) max = hi; });
+  return max;
+}
+function pBlockOf(prog, week) {
+  var b = prog.blocks || {}, keys = Object.keys(b), i;
+  for (i = 0; i < keys.length; i++) { var p = String(b[keys[i]].weeks || '').split('-'); var lo = parseInt(p[0], 10), hi = parseInt(p[p.length - 1], 10), dl = parseInt(b[keys[i]].deload, 10); if ((week >= lo && week <= hi) || week === dl) return parseInt(keys[i], 10) || keys[i]; }
+  return keys.length ? (parseInt(keys[0], 10) || 1) : 1;
+}
+function pIsDeload(prog, week) { var b = prog.blocks || {}; return Object.keys(b).some(function (k) { return parseInt(b[k].deload, 10) === week; }); }
+function openProgram() { viewProgramId = null; programBackTo = 'dash'; view = 'program'; programBlock = null; programDay = null; render(); window.scrollTo(0, 0); }
+function viewProgram(id) { viewProgramId = (id === D.activeProgramId) ? null : id; programBackTo = 'log'; view = 'program'; programBlock = null; programDay = null; render(); window.scrollTo(0, 0); }
+function progToOverview() { programBlock = null; programDay = null; render(); window.scrollTo(0, 0); }
 function progOpenBlock(b) { programBlock = b; programDay = null; render(); window.scrollTo(0, 0); }
 function progOpenDay(rid) { programDay = rid; render(); window.scrollTo(0, 0); }
+function progBack() { if (programBackTo === 'log') { view = 'log'; logMode = 'menu'; render(); window.scrollTo(0, 0); } else { go('dash'); } }
 
 function programHtml() {
-  if (!hasProgram()) return emptyState('No program', 'No active program is configured.');
+  if (!explorerProgram() || !explorerProgram().name) return emptyState('No program', 'No program to show.');
   if (programDay) return programDayHtml();
   if (programBlock) return programBlockHtml();
   return programOverviewHtml();
 }
 function programOverviewHtml() {
-  var pr = programProgress();
-  var periodized = isPeriodized();
-  var h = '<div class="card"><button class="btn ghost sm" onclick="go(\'dash\')" style="margin-bottom:12px">← Back</button>';
-  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">' + esc(D.program.name) + '</div>';
-  if (D.program.method) h += '<div class="muted" style="font-size:12.5px;margin-top:4px">' + esc(D.program.method) + '</div>';
-  h += '<div class="muted" style="font-size:12.5px">' + esc(D.program.split) + '</div>';
-  if (periodized) {
-    var total = pr.total, prevBlock = 0;
-    if (total > 0) {
-      h += '<div style="margin-top:14px;display:flex">';
-      for (var wk = 1; wk <= total; wk++) {
-        var b = blockOf(wk), dl = isDeloadWeek(wk), cur = (wk === pr.week);
-        var style = 'flex:1;min-width:0;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0e0f12;background:' + blockColor(b) + ';' +
-          (dl ? 'opacity:.4;' : '') + (cur ? 'outline:2px solid var(--txt);outline-offset:1px;' : '') + (wk > 1 ? 'margin-left:' + (b !== prevBlock ? '8' : '3') + 'px;' : '');
-        h += '<div style="' + style + '">' + wk + '</div>';
-        prevBlock = b;
-      }
-      h += '</div><div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of ' + total + ' · faded = deload week</div>' +
+  var prog = explorerProgram();
+  var isActive = !viewProgramId;
+  var periodized = pIsPeriodized(prog);
+  var pr = isActive ? programProgress() : null;
+  var total = pTotalWeeks(prog);
+  var h = '<div class="card"><button class="btn ghost sm" onclick="progBack()" style="margin-bottom:12px">← Back</button>';
+  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">' + esc(prog.name) + (isActive ? '' : ' <span class="pill" style="vertical-align:middle">preview</span>') + '</div>';
+  if (prog.method) h += '<div class="muted" style="font-size:12.5px;margin-top:4px">' + esc(prog.method) + '</div>';
+  h += '<div class="muted" style="font-size:12.5px">' + esc(prog.split || deriveSplit(prog.routines)) + '</div>';
+  if (periodized && total > 0) {
+    var prevBlock = 0;
+    h += '<div style="margin-top:14px;display:flex">';
+    for (var wk = 1; wk <= total; wk++) {
+      var b = pBlockOf(prog, wk), dl = pIsDeload(prog, wk), cur = (isActive && pr && wk === pr.week);
+      var style = 'flex:1;min-width:0;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#0e0f12;background:' + blockColor(b) + ';' +
+        (dl ? 'opacity:.4;' : '') + (cur ? 'outline:2px solid var(--txt);outline-offset:1px;' : '') + (wk > 1 ? 'margin-left:' + (b !== prevBlock ? '8' : '3') + 'px;' : '');
+      h += '<div style="' + style + '">' + wk + '</div>';
+      prevBlock = b;
+    }
+    h += '</div>';
+    if (isActive) {
+      h += '<div class="muted" style="font-size:11px;margin-top:8px">Week ' + pr.week + ' of ' + total + ' · faded = deload week</div>' +
         '<div class="muted" style="font-size:11px;margin-top:4px">' + completedSessions() + ' / ' + plannedSessionsTotal() + ' sessions completed (' + completionPct() + '%)</div>';
     } else {
-      h += '<div class="muted" style="font-size:11px;margin-top:10px">Add week ranges to blocks (below) to show the timeline.</div>';
+      h += '<div class="muted" style="font-size:11px;margin-top:8px">' + total + ' weeks · faded = deload week</div>';
     }
+  } else if (periodized) {
+    h += '<div class="muted" style="font-size:11px;margin-top:10px">Add week ranges to blocks to show the timeline.</div>';
   } else {
-    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + D.routines.length + ' training days · simple program</div>';
+    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + (prog.routines || []).length + ' training days · simple program</div>';
   }
   h += '</div>';
   if (periodized) {
-    var pBlocks = Object.keys(D.program.blocks).map(function (k) { return parseInt(k, 10); }).sort(function (a, b) { return a - b; });
-    pBlocks.forEach(function (b) {
-      var m = blockMeta(b), fb = BLOCK_GOALS[String(b)] || {}, g = { goal: m.goal || fb.goal, scheme: m.scheme || fb.scheme }, cur = blockOf(pr.week) === b;
-      var nDays = blockRoutines(b).length;
+    var keys = Object.keys(prog.blocks).map(function (k) { return parseInt(k, 10); }).sort(function (a, b) { return a - b; });
+    keys.forEach(function (b) {
+      var m = pBlockMeta(prog, b), fb = BLOCK_GOALS[String(b)] || {}, g = { goal: m.goal || fb.goal, scheme: m.scheme || fb.scheme };
+      var cur = isActive && pr && pBlockOf(prog, pr.week) === b;
+      var nDays = pBlockRoutines(prog, b).length;
       h += '<button class="rcard scard" onclick="progOpenBlock(' + b + ')">' +
         '<div class="row"><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:16px">Block ' + b + '</div>' +
         (cur ? '<span class="pill accent">Current</span>' : '<span class="muted" style="font-size:18px">›</span>') + '</div>' +
@@ -864,14 +894,15 @@ function programOverviewHtml() {
     });
   } else {
     h += '<div style="margin:14px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Training days</h2></div>';
-    D.routines.forEach(function (r) { h += progDayCard(r); });
+    (prog.routines || []).forEach(function (r) { h += progDayCard(r); });
   }
   h += '<div style="height:16px"></div>';
   return h;
 }
 function programBlockHtml() {
-  var b = programBlock, m = blockMeta(b), fb = BLOCK_GOALS[String(b)] || {}, g = { goal: m.goal || fb.goal, scheme: m.scheme || fb.scheme };
-  var h = '<div class="card"><button class="btn ghost sm" onclick="openProgram()" style="margin-bottom:12px">← Program</button>';
+  var prog = explorerProgram();
+  var b = programBlock, m = pBlockMeta(prog, b), fb = BLOCK_GOALS[String(b)] || {}, g = { goal: m.goal || fb.goal, scheme: m.scheme || fb.scheme };
+  var h = '<div class="card"><button class="btn ghost sm" onclick="progToOverview()" style="margin-bottom:12px">← Program</button>';
   h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">Block ' + b + '</div>';
   h += '<div style="font-weight:700;margin-top:2px">' + esc(m.phase || '') + '</div>';
   h += '<div class="muted" style="font-size:12.5px;margin-top:2px">Weeks ' + esc(m.weeks || '') + ' · Deload week ' + esc(m.deload || '') + '</div>';
@@ -879,19 +910,23 @@ function programBlockHtml() {
   if (g.scheme) h += '<div style="margin-top:10px"><span class="pill">' + esc(g.scheme) + '</span></div>';
   h += '</div>';
   h += '<div style="margin:14px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Training days</h2></div>';
-  blockRoutines(b).forEach(function (r) { h += progDayCard(r); });
+  pBlockRoutines(prog, b).forEach(function (r) { h += progDayCard(r); });
   h += '<div style="height:16px"></div>';
   return h;
 }
 function programDayHtml() {
-  var r = D.routines.filter(function (x) { return x.id === programDay; })[0];
+  var prog = explorerProgram();
+  var isActive = !viewProgramId;
+  var r = (prog.routines || []).filter(function (x) { return x.id === programDay; })[0];
   if (!r) return emptyState('Not found', 'That day is unavailable.');
-  var m = blockMeta(r.block);
-  var h = '<div class="card"><button class="btn ghost sm" onclick="progOpenBlock(' + r.block + ')" style="margin-bottom:12px">← Block ' + r.block + '</button>';
+  var m = pBlockMeta(prog, r.block);
+  var h = '<div class="card"><button class="btn ghost sm" onclick="' + (r.block ? 'progOpenBlock(' + r.block + ')' : 'progToOverview()') + '" style="margin-bottom:12px">← Back</button>';
   h += '<div class="row"><div><div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:24px">' + esc(r.name) + '</div>' +
     '<div class="muted" style="font-size:12.5px;margin-top:2px">' + (r.block ? 'Block ' + r.block + ' · ' : '') + esc(m.phase || '') + '</div></div>' +
     (r.derived ? '<span class="pill derived">derived</span>' : '') + '</div>';
-  h += '<button class="btn" style="margin-top:12px" onclick="startWorkout(\'' + r.id + '\')">Start this workout</button></div>';
+  if (isActive) h += '<button class="btn" style="margin-top:12px" onclick="startWorkout(\'' + r.id + '\')">Start this workout</button>';
+  else h += '<div class="muted" style="font-size:12px;margin-top:12px">Set this program active (Log → Programs) to train its days.</div>';
+  h += '</div>';
   r.exercises.forEach(function (e, i) {
     h += '<div class="ex"><div class="row"><div><div class="name">' + (i + 1) + '. ' + esc(e.name) + '</div>' +
       '<div class="scheme">' + e.sets + ' × ' + esc(e.reps) + ' @ RPE ' + esc(e.rpe) + ' · rest ' + fmtRest(e.rest) + '</div></div>' +
@@ -1094,10 +1129,12 @@ function logMenuHtml() {
     h += '<div class="ex"><div class="row" style="align-items:flex-start"><div style="flex:1"><div class="name">' + esc(p.name) + (active ? ' <span class="pill accent">Active</span>' : '') + '</div>' +
       '<div class="scheme">' + (p.routines ? p.routines.length : 0) + ' days · ' + (p.periodized ? 'periodized' : 'simple') + '</div></div></div>' +
       '<div class="row" style="gap:8px;margin-top:10px">' +
-      (active ? '<button class="btn ghost sm" style="flex:1" onclick="openProgram()">View plan</button>'
-              : '<button class="btn sm" style="flex:1" onclick="setActiveProgram(\'' + p.id + '\')">Set active</button>') +
-      '<button class="btn ghost sm" onclick="openEditProgram(\'' + p.id + '\')">Edit</button>' +
-      '<button class="btn ghost sm" onclick="deleteProgram(\'' + p.id + '\')" style="color:var(--bad)">Delete</button>' +
+      '<button class="btn ghost sm" style="flex:1" onclick="viewProgram(\'' + p.id + '\')">View plan</button>' +
+      (active ? '' : '<button class="btn sm" style="flex:1" onclick="setActiveProgram(\'' + p.id + '\')">Set active</button>') +
+      '</div>' +
+      '<div class="row" style="gap:8px;margin-top:8px">' +
+      '<button class="btn ghost sm" style="flex:1" onclick="openEditProgram(\'' + p.id + '\')">Edit</button>' +
+      '<button class="btn ghost sm" style="flex:1;color:var(--bad)" onclick="deleteProgram(\'' + p.id + '\')">Delete</button>' +
       '</div></div>';
   });
   return h;
