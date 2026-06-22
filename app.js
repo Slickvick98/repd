@@ -447,6 +447,55 @@ function lineChart(canvas, pts, color, yMinO, yMaxO) {
   ctx.fillStyle = getCss('--muted'); ctx.textAlign = 'center';
   ctx.fillText(pts[0].x.slice(5), X(0), cssH - 8);
   if (pts.length > 1) ctx.fillText(pts[pts.length - 1].x.slice(5), X(pts.length - 1), cssH - 8);
+  // store geometry so a touch scrubber can snap to points
+  canvas._chart = {
+    pts: pts, color: color, yMin: yMinO, yMax: yMaxO, cssH: cssH,
+    px: pts.map(function (p, i) { return { x: X(i), y: Y(p.y), label: p.x, val: p.y }; })
+  };
+}
+/* touch/drag scrubber: snap to nearest point, show a date+value tooltip */
+function attachChartScrubber(canvas, unit) {
+  if (!canvas) return;
+  canvas._unit = unit || '';
+  if (canvas._scrubAttached) return;
+  canvas._scrubAttached = true;
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtDay(s) { var p = String(s).split('-'); return (p.length === 3) ? MON[parseInt(p[1], 10) - 1] + ' ' + parseInt(p[2], 10) : s; }
+  function tipEl() { var t = document.getElementById('chartTip'); if (!t) { t = document.createElement('div'); t.id = 'chartTip'; t.className = 'charttip'; document.body.appendChild(t); } return t; }
+  function clientX(e) { return e.touches && e.touches.length ? e.touches[0].clientX : e.clientX; }
+  function nearest(x) {
+    var c = canvas._chart; if (!c || !c.px.length) return null;
+    var best = c.px[0], bd = Infinity;
+    c.px.forEach(function (p) { var d = Math.abs(p.x - x); if (d < bd) { bd = d; best = p; } });
+    return best;
+  }
+  function redraw(p) {
+    var c = canvas._chart; if (!c) return;
+    lineChart(canvas, c.pts, c.color, c.yMin, c.yMax);   // base
+    if (!p) return;
+    var ctx = canvas.getContext('2d');
+    ctx.strokeStyle = getCss('--muted'); ctx.globalAlpha = .45; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(p.x, 8); ctx.lineTo(p.x, c.cssH - 20); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = getCss('--bg2'); ctx.lineWidth = 2; ctx.stroke();
+  }
+  function show(p) {
+    var t = tipEl(), r = canvas.getBoundingClientRect();
+    t.textContent = fmtDay(p.label) + ' · ' + p.val + (canvas._unit ? ' ' + canvas._unit : '');
+    t.style.left = (r.left + p.x) + 'px';
+    t.style.top = (r.top + p.y - 40) + 'px';
+    t.classList.add('on');
+  }
+  function hide() { var t = document.getElementById('chartTip'); if (t) t.classList.remove('on'); redraw(null); }
+  function move(e) { var p = nearest(clientX(e) - canvas.getBoundingClientRect().left); if (!p) return; redraw(p); show(p); if (e.cancelable) e.preventDefault(); }
+  canvas.addEventListener('touchstart', move, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', hide, { passive: true });
+  canvas.addEventListener('touchcancel', hide, { passive: true });
+  canvas.addEventListener('mousedown', move);
+  canvas.addEventListener('mousemove', function (e) { if (e.buttons) move(e); });
+  canvas.addEventListener('mouseup', hide);
+  canvas.addEventListener('mouseleave', hide);
 }
 function getCss(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
@@ -1470,8 +1519,10 @@ function setPRExercise(n) { bodyPR = n; render(); }
 function drawBodyPRChart() {
   if (!bodyPR || !$('prChart')) return;
   var p = D.prs[bodyPR];
-  if (isRepPR(p)) lineChart($('prChart'), repsSeries(bodyPR), getCss('--accent2'));
+  var rep = isRepPR(p);
+  if (rep) lineChart($('prChart'), repsSeries(bodyPR), getCss('--accent2'));
   else lineChart($('prChart'), weightPRSeries(bodyPR), getCss('--accent'));
+  attachChartScrubber($('prChart'), rep ? 'reps' : 'lb');
 }
 function logBW() {
   var v = parseFloat($('bwInput').value);
@@ -1497,6 +1548,7 @@ function drawBodyCharts() {
     yMax = Math.max.apply(null, ys) + 5;                 // 5 lb above highest
   }
   lineChart($('bwChart'), pts, getCss('--accent2'), yMin, yMax);
+  attachChartScrubber($('bwChart'), 'lb');
 }
 
 /* ---------- Progress (per exercise) ---------- */
