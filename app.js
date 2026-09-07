@@ -258,7 +258,8 @@ function applyActiveProgram() {
   var p = activeProgram();
   if (!p) { D.program = { name: '', method: '', split: '', blocks: {} }; D.routines = []; D.activeProgramId = null; return; }
   D.activeProgramId = p.id;
-  D.program = { name: p.name, method: p.method || '', split: p.split || deriveSplit(p.routines), blocks: p.blocks || {} };
+  D.program = { name: p.name, method: p.method || '', split: p.split || deriveSplit(p.routines), blocks: p.blocks || {},
+    mode: p.mode || 'sequential', blueprint: p.blueprint || null };
   D.routines = JSON.parse(JSON.stringify(p.routines || []));
 }
 function setActiveProgram(id) {
@@ -287,12 +288,15 @@ function parseProgramJson(text) {
   var days = o.days || o.routines || [];
   if (!days.length) throw new Error('needs a "days" array');
   var pid = 'pg' + Date.now().toString(36);
+  var adaptive = o.mode === 'adaptive';
   var routines = days.map(function (d, i) {
-    if (!d.name || !d.exercises || !d.exercises.length) throw new Error('each day needs "name" and "exercises"');
+    // Adaptive-split days may legitimately start with no exercises (filled in later via the editor).
+    if (!d.name || (!adaptive && (!d.exercises || !d.exercises.length))) throw new Error('each day needs "name" and "exercises"');
     return {
       id: pid + '-' + i, name: String(d.name), block: (d.block != null ? d.block : ''),
+      session: d.session || '',
       phase: d.phase || '', weeks: d.weeks || '', deloadWeek: d.deloadWeek || '', derived: !!d.derived,
-      exercises: d.exercises.map(function (e) {
+      exercises: (d.exercises || []).map(function (e) {
         return { name: String(e.name), type: e.type || '', sets: parseInt(e.sets, 10) || 3,
           reps: String(e.reps == null ? '' : e.reps), rpe: String(e.rpe == null ? '' : e.rpe), rest: parseInt(e.rest, 10) || 90 };
       })
@@ -300,7 +304,9 @@ function parseProgramJson(text) {
   });
   var blocks = o.blocks || {};
   return { id: pid, name: String(o.name), method: o.method || '', split: o.split || deriveSplit(routines),
-    blocks: blocks, periodized: Object.keys(blocks).length > 0, routines: routines };
+    blocks: blocks, periodized: Object.keys(blocks).length > 0,
+    mode: adaptive ? 'adaptive' : 'sequential', blueprint: adaptive ? (o.blueprint || null) : null,
+    routines: routines };
 }
 function bootData() {
   // start from cache if present, else seed file
@@ -585,7 +591,48 @@ function lastProgramAction() {
   if (lw && ls) return new Date(ls.date) >= new Date(lw.date) ? ls : lw;
   return lw || ls || null;
 }
+/* ---------- Adaptive split (frequency-based rotation) ----------
+   Order matters, not weekday: frequency picks an ordered list of sessions to
+   cycle through. Position advances by every completed OR skipped session since
+   the program started, so life-skips keep the rotation consistent. The 3-day
+   sequence is a 6-step A/B super-cycle (A: Upper/Lower/Push, B: Upper/Pull/Legs). */
+var MAX_SESSIONS = [
+  { key: 'upper', name: 'UPPER +CARDIO' },
+  { key: 'lower', name: 'LOWER +CORE' },
+  { key: 'push', name: 'PUSH +CARDIO' },
+  { key: 'pull', name: 'PULL +CARDIO' },
+  { key: 'legs', name: 'LEGS +CORE' },
+  { key: 'accessory', name: 'ACCESSORY' }
+];
+var MAX_SEQUENCES = {
+  '3': ['upper', 'lower', 'push', 'upper', 'pull', 'legs'],
+  '4': ['upper', 'lower', 'push', 'legs'],
+  '5': ['upper', 'lower', 'push', 'pull', 'legs'],
+  '6': ['upper', 'lower', 'push', 'pull', 'legs', 'accessory']
+};
+function isAdaptive() { return !!(D.program && D.program.mode === 'adaptive' && D.program.blueprint); }
+function adaptiveFrequency() { return (D.program.blueprint && parseInt(D.program.blueprint.frequency, 10)) || 5; }
+function adaptiveSeq() {
+  var bp = D.program.blueprint || {};
+  var f = String(adaptiveFrequency());
+  return (bp.sequences && bp.sequences[f]) || MAX_SEQUENCES[f] || MAX_SEQUENCES['5'];
+}
+/* count of sessions logged or skipped since the program became active */
+function adaptiveCount() {
+  var start = D.programStart ? new Date(D.programStart) : null;
+  var n = (D.workouts || []).filter(function (w) { return !start || new Date(w.date) >= start; }).length;
+  n += (D.skips || []).filter(function (s) { return !start || new Date(s.date) >= start; }).length;
+  return n;
+}
+function adaptivePosition() { var seq = adaptiveSeq(); return seq.length ? (adaptiveCount() % seq.length) : 0; }
+function routineForSession(key) { return (D.routines || []).filter(function (r) { return r.session === key; })[0] || null; }
+function adaptiveNext() {
+  var seq = adaptiveSeq();
+  if (!seq || !seq.length) return D.routines[0] || null;
+  return routineForSession(seq[adaptivePosition()]) || D.routines[0] || null;
+}
 function nextRoutine() {
+  if (isAdaptive()) return adaptiveNext();
   var routines = isPeriodized() ? blockRoutines(blockOf(programProgress().week)) : D.routines;
   if (!routines || !routines.length) routines = D.routines;
   if (!routines || !routines.length) return null;
@@ -694,6 +741,8 @@ function dashHtml() {
         '<span class="mono" style="font-size:12px;color:var(--accent)">' + cpct + '% done</span></div>';
       h += '<div class="pbar"><i style="width:' + pr.pct + '%"></i></div>';
       h += '<div class="muted" style="font-size:11px;margin-top:6px">' + done + ' / ' + planned + ' sessions completed</div>';
+    } else if (isAdaptive()) {
+      h += '<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:12px">' + adaptiveFrequency() + '-day rotation</div>';
     } else {
       h += '<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-top:12px">' + D.routines.length + ' training days</div>';
     }
@@ -816,7 +865,8 @@ function blockRoutines(b) { return D.routines.filter(function (r) { return r.blo
 /* the program the explorer is currently showing (active mirror, or a previewed one) */
 function explorerProgram() {
   if (viewProgramId) { var p = (D.programs || []).filter(function (x) { return x.id === viewProgramId; })[0]; if (p) return p; }
-  return { name: D.program.name, method: D.program.method, split: D.program.split, blocks: D.program.blocks, routines: D.routines };
+  return { name: D.program.name, method: D.program.method, split: D.program.split, blocks: D.program.blocks,
+    mode: D.program.mode, blueprint: D.program.blueprint, routines: D.routines };
 }
 function pIsPeriodized(prog) { return !!(prog.blocks && Object.keys(prog.blocks).length); }
 function pBlockMeta(prog, b) { var bl = prog.blocks || {}; return bl[b] || bl[String(b)] || {}; }
@@ -844,6 +894,44 @@ function programHtml() {
   if (programDay) return programDayHtml();
   if (programBlock) return programBlockHtml();
   return programOverviewHtml();
+}
+function sessionName(prog, key) {
+  var r = (prog.routines || []).filter(function (x) { return x.session === key; })[0];
+  if (r) return r.name;
+  var m = MAX_SESSIONS.filter(function (s) { return s.key === key; })[0];
+  return m ? m.name : key;
+}
+/* Frequency selector + the resulting rotation order, for an adaptive-split program. */
+function adaptivePanelHtml(prog, isActive) {
+  var bp = prog.blueprint || {};
+  var freq = parseInt(bp.frequency, 10) || 5;
+  var seq = (bp.sequences && bp.sequences[String(freq)]) || MAX_SEQUENCES[String(freq)] || MAX_SEQUENCES['5'];
+  var pos = isActive ? adaptivePosition() : -1;
+  var h = '<div class="card">';
+  h += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Training frequency</div>';
+  h += '<div class="row" style="gap:8px;margin-top:10px">';
+  [3, 4, 5, 6].forEach(function (n) {
+    var on = n === freq;
+    var cls = on ? 'btn sm' : 'btn ghost sm';
+    var click = isActive ? 'setAdaptiveFrequency(' + n + ')' : '';
+    h += '<button class="' + cls + '" style="flex:1' + (isActive ? '' : ';pointer-events:none;opacity:' + (on ? '1' : '.5')) + '" ' +
+      (click ? 'onclick="' + click + '"' : '') + '>' + n + '-day</button>';
+  });
+  h += '</div>';
+  h += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:16px">Rotation order' +
+    (freq === 3 ? ' · A / B alternating' : '') + '</div>';
+  seq.forEach(function (key, i) {
+    var cur = isActive && i === pos;
+    var half = freq === 3 ? (i < 3 ? 'A' : 'B') : '';
+    h += '<div class="row" style="align-items:center;gap:10px;padding:9px 0' + (i ? ';border-top:1px solid var(--line)' : '') + '">' +
+      '<div class="mono" style="width:20px;color:var(--muted);font-size:12px">' + (i + 1) + '</div>' +
+      '<div style="flex:1;font-weight:' + (cur ? '800' : '700') + (cur ? ';color:var(--accent)' : '') + '">' + esc(sessionName(prog, key)) + '</div>' +
+      (half ? '<span class="pill" style="font-size:10px">' + half + '</span>' : '') +
+      (cur ? '<span class="pill accent" style="font-size:10px">Up next</span>' : '') + '</div>';
+  });
+  if (isActive) h += '<div class="muted" style="font-size:11px;margin-top:10px">Every completed or skipped session advances the rotation, so skipped days keep the order consistent.</div>';
+  h += '</div>';
+  return h;
 }
 function programOverviewHtml() {
   var prog = explorerProgram();
@@ -874,10 +962,14 @@ function programOverviewHtml() {
     }
   } else if (periodized) {
     h += '<div class="muted" style="font-size:11px;margin-top:10px">Add week ranges to blocks to show the timeline.</div>';
+  } else if (prog.mode === 'adaptive' && prog.blueprint) {
+    var af = parseInt(prog.blueprint.frequency, 10) || 5;
+    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + af + '-day rotation · adaptive split</div>';
   } else {
     h += '<div class="muted" style="font-size:12px;margin-top:10px">' + (prog.routines || []).length + ' training days · simple program</div>';
   }
   h += '</div>';
+  if (prog.mode === 'adaptive' && prog.blueprint) h += adaptivePanelHtml(prog, isActive);
   if (periodized) {
     var keys = Object.keys(prog.blocks).map(function (k) { return parseInt(k, 10); }).sort(function (a, b) { return a - b; });
     keys.forEach(function (b) {
@@ -953,7 +1045,8 @@ function doImport() {
 }
 function programsHtml() {
   var h = '<div class="card"><button class="btn ghost sm" onclick="go(\'dash\')" style="margin-bottom:12px">← Back</button><h2>Programs</h2>';
-  h += '<button class="btn" onclick="toggleImport()">' + (importOpen ? 'Cancel import' : 'Import program (JSON)') + '</button>';
+  h += '<button class="btn" onclick="newAdaptiveProgram()">+ New adaptive split (MAX)</button>';
+  h += '<button class="btn ghost" style="margin-top:8px" onclick="toggleImport()">' + (importOpen ? 'Cancel import' : 'Import program (JSON)') + '</button>';
   if (importOpen) {
     h += '<textarea id="impText" placeholder="Paste program JSON…" spellcheck="false" autocapitalize="off" style="width:100%;height:150px;margin-top:10px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-family:monospace;font-size:12px"></textarea>';
     h += '<button class="btn sm" style="margin-top:8px;width:100%" onclick="doImport()">Add program</button>';
@@ -981,6 +1074,33 @@ function newProgram() {
   editProg = { id: editProgramId, name: '', method: '', split: '', blocks: {}, periodized: false,
     routines: [{ id: 'd0', name: 'Day 1', block: '', exercises: [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }] }] };
   view = 'progEdit'; render(); window.scrollTo(0, 0);
+}
+/* Scaffold the MAX adaptive split: 6 sessions (empty exercises to fill later) + a
+   frequency-based rotation blueprint. Added to the library and (optionally) set active. */
+function newAdaptiveProgram() {
+  var pid = 'pg' + Date.now().toString(36);
+  var routines = MAX_SESSIONS.map(function (s) {
+    return { id: pid + '-' + s.key, name: s.name, block: '', session: s.key,
+      phase: '', weeks: '', deloadWeek: '', derived: false, exercises: [] };
+  });
+  var prog = { id: pid, name: 'MAX Adaptive Split', method: 'Frequency-based rotation',
+    split: 'Upper / Lower / Push / Pull / Legs / Accessory', blocks: {}, periodized: false,
+    mode: 'adaptive', blueprint: { frequency: 5, sequences: JSON.parse(JSON.stringify(MAX_SEQUENCES)) },
+    routines: routines };
+  D.programs.push(prog);
+  if (confirm('Created “MAX Adaptive Split”. Set it active now? (Add exercises to each day via Edit.)')) {
+    setActiveProgram(prog.id);
+  } else {
+    render(); toast('Adaptive split added'); syncDataJson('add program: ' + prog.name);
+  }
+}
+function setAdaptiveFrequency(n) {
+  var p = activeProgram();
+  if (!p || !p.blueprint) return;
+  p.blueprint.frequency = n;
+  applyActiveProgram(); cacheData(); render(); window.scrollTo(0, 0);
+  syncDataJson('set frequency: ' + n + '-day');
+  toast(n + '-day rotation');
 }
 function openEditProgram(id) {
   var p = (D.programs || []).filter(function (x) { return x.id === id; })[0];
