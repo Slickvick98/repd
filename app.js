@@ -610,6 +610,60 @@ var MAX_SEQUENCES = {
   '5': ['upper', 'lower', 'push', 'pull', 'legs'],
   '6': ['upper', 'lower', 'push', 'pull', 'legs', 'accessory']
 };
+/* Exercises per session, chosen with the user and schemed to match the existing
+   12-week program (compounds ~6-10 reps @ RPE 7-8; isolation ~10-15 @ RPE 8). */
+var MAX_PLAN = {
+  upper: [
+    { name: 'Barbell Bench Press', type: 'strength', sets: 4, reps: '6-8', rpe: '7', rest: 120 },
+    { name: 'Barbell Row', type: 'strength', sets: 4, reps: '8-10', rpe: '7', rest: 90 },
+    { name: 'Seated DB Shoulder Press', type: 'strength', sets: 3, reps: '8-10', rpe: '7-8', rest: 90 },
+    { name: 'Lat Pulldown', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 75 },
+    { name: 'Lateral Raises', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Rear Delt Flys', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'DB Curls', type: 'strength', sets: 3, reps: '8-10', rpe: '8', rest: 60 },
+    { name: 'Hammer Curls', type: 'strength', sets: 2, reps: '10-12', rpe: '8', rest: 60 },
+    { name: 'Incline Treadmill Walk', type: 'cardio', sets: 1, reps: '15-20 min', rpe: '', rest: 0 }
+  ],
+  lower: [
+    { name: 'Back Squat', type: 'strength', sets: 4, reps: '6-8', rpe: '7', rest: 150 },
+    { name: 'Romanian Deadlift', type: 'strength', sets: 3, reps: '8-10', rpe: '7-8', rest: 120 },
+    { name: 'Walking Lunges', type: 'strength', sets: 3, reps: '10-12', rpe: '7-8', rest: 90 },
+    { name: 'Hanging Leg Raises', type: 'core', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Pallof Press', type: 'core', sets: 3, reps: '12/side', rpe: '8', rest: 45 },
+    { name: 'GHD Sit-ups', type: 'core', sets: 3, reps: '15-20', rpe: '8', rest: 60 }
+  ],
+  push: [
+    { name: 'Incline DB Bench Press', type: 'strength', sets: 4, reps: '8-10', rpe: '7-8', rest: 90 },
+    { name: 'Standing Barbell OHP', type: 'strength', sets: 3, reps: '8-10', rpe: '7-8', rest: 90 },
+    { name: 'Cable Chest Flys', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Rear Delt Flys', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Skull Crushers', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 60 },
+    { name: 'Incline Treadmill Walk', type: 'cardio', sets: 1, reps: '15-20 min', rpe: '', rest: 0 }
+  ],
+  pull: [
+    { name: 'Pull-ups', type: 'strength', sets: 4, reps: '6-10', rpe: '7', rest: 120 },
+    { name: 'DB Row', type: 'strength', sets: 3, reps: '10-12', rpe: '7-8', rest: 90 },
+    { name: 'Face Pulls', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Barbell Curl', type: 'strength', sets: 3, reps: '8-10', rpe: '8', rest: 60 },
+    { name: 'Assault Bike Intervals', type: 'cardio', sets: 1, reps: '10 x 20s/40s', rpe: '', rest: 0 }
+  ],
+  legs: [
+    { name: 'Hack Squat', type: 'strength', sets: 4, reps: '8-10', rpe: '7-8', rest: 120 },
+    { name: 'Bulgarian Split Squat', type: 'strength', sets: 3, reps: '8-12/leg', rpe: '8', rest: 90 },
+    { name: 'Hamstring Curls', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 60 },
+    { name: 'Leg Extensions', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Cable Crunch', type: 'core', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Plank', type: 'core', sets: 3, reps: '45-60s', rpe: '8', rest: 45 }
+  ],
+  accessory: [
+    { name: 'Barbell Curl', type: 'strength', sets: 3, reps: '8-10', rpe: '8', rest: 60 },
+    { name: 'Tricep Pressdowns', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 60 },
+    { name: 'Lateral Raises', type: 'strength', sets: 4, reps: '12-20', rpe: '8', rest: 45 },
+    { name: 'Rear Delt Flys', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
+    { name: 'Incline Treadmill Walk', type: 'cardio', sets: 1, reps: '15-20 min', rpe: '', rest: 0 },
+    { name: 'Stretching / Mobility', type: 'mobility', sets: 1, reps: '10 min', rpe: '', rest: 0 }
+  ]
+};
 function isAdaptive() { return !!(D.program && D.program.mode === 'adaptive' && D.program.blueprint); }
 function adaptiveFrequency() { return (D.program.blueprint && parseInt(D.program.blueprint.frequency, 10)) || 5; }
 function adaptiveSeq() {
@@ -1080,15 +1134,18 @@ function newProgram() {
 function newAdaptiveProgram() {
   var pid = 'pg' + Date.now().toString(36);
   var routines = MAX_SESSIONS.map(function (s) {
+    var ex = (MAX_PLAN[s.key] || []).map(function (e) {
+      return { name: e.name, type: e.type || 'strength', sets: e.sets, reps: e.reps, rpe: e.rpe, rest: e.rest };
+    });
     return { id: pid + '-' + s.key, name: s.name, block: '', session: s.key,
-      phase: '', weeks: '', deloadWeek: '', derived: false, exercises: [] };
+      phase: '', weeks: '', deloadWeek: '', derived: false, exercises: ex };
   });
   var prog = { id: pid, name: 'MAX Adaptive Split', method: 'Frequency-based rotation',
     split: 'Upper / Lower / Push / Pull / Legs / Accessory', blocks: {}, periodized: false,
     mode: 'adaptive', blueprint: { frequency: 5, sequences: JSON.parse(JSON.stringify(MAX_SEQUENCES)) },
     routines: routines };
   D.programs.push(prog);
-  if (confirm('Created “MAX Adaptive Split”. Set it active now? (Add exercises to each day via Edit.)')) {
+  if (confirm('Created “MAX Adaptive Split” with your chosen lifts. Set it active now?')) {
     setActiveProgram(prog.id);
   } else {
     render(); toast('Adaptive split added'); syncDataJson('add program: ' + prog.name);
