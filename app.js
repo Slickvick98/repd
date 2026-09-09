@@ -961,17 +961,7 @@ function adaptivePanelHtml(prog, isActive) {
   var seq = (bp.sequences && bp.sequences[String(freq)]) || MAX_SEQUENCES[String(freq)] || MAX_SEQUENCES['5'];
   var pos = isActive ? adaptivePosition() : -1;
   var h = '<div class="card">';
-  h += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Training frequency</div>';
-  h += '<div class="row" style="gap:8px;margin-top:10px">';
-  [3, 4, 5, 6].forEach(function (n) {
-    var on = n === freq;
-    var cls = on ? 'btn sm' : 'btn ghost sm';
-    var click = isActive ? 'setAdaptiveFrequency(' + n + ')' : '';
-    h += '<button class="' + cls + '" style="flex:1' + (isActive ? '' : ';pointer-events:none;opacity:' + (on ? '1' : '.5')) + '" ' +
-      (click ? 'onclick="' + click + '"' : '') + '>' + n + '-day</button>';
-  });
-  h += '</div>';
-  h += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:16px">Rotation order' +
+  h += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Rotation order · ' + freq + '-day' +
     (freq === 3 ? ' · A / B alternating' : '') + '</div>';
   seq.forEach(function (key, i) {
     var cur = isActive && i === pos;
@@ -1136,7 +1126,7 @@ function newAdaptiveProgram() { view = 'newmax'; render(); window.scrollTo(0, 0)
 function newMaxHtml() {
   var h = '<div class="card"><button class="btn ghost sm" onclick="cancelNewMax()" style="margin-bottom:12px">← Cancel</button>';
   h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">New adaptive split</div>';
-  h += '<div class="muted" style="font-size:12.5px;margin-top:4px">How many days per week will you train? You can change this later.</div>';
+  h += '<div class="muted" style="font-size:12.5px;margin-top:4px">How many days per week will you train?</div>';
   h += '<div style="margin-top:16px">';
   [
     { n: 3, sub: 'Upper / Lower / Push, alternating with Upper / Pull / Legs' },
@@ -1168,14 +1158,6 @@ function createAdaptiveProgram(freq) {
     routines: routines };
   D.programs.push(prog);
   setActiveProgram(prog.id);                // save it active with the chosen frequency
-}
-function setAdaptiveFrequency(n) {
-  var p = activeProgram();
-  if (!p || !p.blueprint) return;
-  p.blueprint.frequency = n;
-  applyActiveProgram(); cacheData(); render(); window.scrollTo(0, 0);
-  syncDataJson('set frequency: ' + n + '-day');
-  toast(n + '-day rotation');
 }
 function openEditProgram(id) {
   var p = (D.programs || []).filter(function (x) { return x.id === id; })[0];
