@@ -568,7 +568,6 @@ function viewHtml() {
   if (view === 'dash') return dashHtml();
   if (view === 'program') return programHtml();
   if (view === 'programs') return programsHtml();
-  if (view === 'newmax') return newMaxHtml();
   if (view === 'newbasic') return newBasicHtml();
   if (view === 'progEdit') return progEditHtml();
   if (view === 'workout') return workoutHtml();
@@ -1099,7 +1098,7 @@ function doImport() {
 }
 function programsHtml() {
   var h = '<div class="card"><button class="btn ghost sm" onclick="go(\'dash\')" style="margin-bottom:12px">← Back</button><h2>Programs</h2>';
-  h += '<button class="btn" onclick="newAdaptiveProgram()">+ New adaptive split (MAX)</button>';
+  h += '<button class="btn" onclick="newProgram()">New Split</button>';
   h += '<button class="btn ghost" style="margin-top:8px" onclick="toggleImport()">' + (importOpen ? 'Cancel import' : 'Import program (JSON)') + '</button>';
   if (importOpen) {
     h += '<textarea id="impText" placeholder="Paste program JSON…" spellcheck="false" autocapitalize="off" style="width:100%;height:150px;margin-top:10px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-family:monospace;font-size:12px"></textarea>';
@@ -1186,47 +1185,6 @@ function startBasicBuild() {
   }
   view = 'progEdit'; render(); window.scrollTo(0, 0);
 }
-/* Scaffold the MAX adaptive split: 6 sessions (empty exercises to fill later) + a
-   frequency-based rotation blueprint. Added to the library and (optionally) set active. */
-/* Open the day-count picker (buttons) before building the MAX program. */
-function newAdaptiveProgram() { view = 'newmax'; render(); window.scrollTo(0, 0); }
-/* Frequency picker screen: 3/4/5/6-day buttons that create + activate the program. */
-function newMaxHtml() {
-  var h = '<div class="card"><button class="btn ghost sm" onclick="cancelNewMax()" style="margin-bottom:12px">← Cancel</button>';
-  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">New adaptive split</div>';
-  h += '<div class="muted" style="font-size:12.5px;margin-top:4px">How many days per week will you train?</div>';
-  h += '<div style="margin-top:16px">';
-  [
-    { n: 3, sub: 'Upper / Lower / Push, alternating with Upper / Pull / Legs' },
-    { n: 4, sub: 'Upper / Lower / Push / Legs' },
-    { n: 5, sub: 'Upper / Lower / Push / Pull / Legs' },
-    { n: 6, sub: 'Upper / Lower / Push / Pull / Legs / Accessory' }
-  ].forEach(function (o) {
-    h += '<button class="btn" style="width:100%;text-align:left;margin-top:10px;height:auto;padding:14px" onclick="createAdaptiveProgram(' + o.n + ')">' +
-      '<div style="font-weight:800;font-size:16px">' + o.n + ' days / week</div>' +
-      '<div style="font-size:11.5px;font-weight:500;opacity:.8;margin-top:3px">' + o.sub + '</div></button>';
-  });
-  h += '</div></div>';
-  return h;
-}
-function cancelNewMax() { view = 'log'; logMode = 'menu'; render(); window.scrollTo(0, 0); }
-function createAdaptiveProgram(freq) {
-  if ([3, 4, 5, 6].indexOf(freq) === -1) freq = 5;
-  var pid = 'pg' + Date.now().toString(36);
-  var routines = MAX_SESSIONS.map(function (s) {
-    var ex = (MAX_PLAN[s.key] || []).map(function (e) {
-      return { name: e.name, type: e.type || 'strength', sets: e.sets, reps: e.reps, rpe: e.rpe, rest: e.rest };
-    });
-    return { id: pid + '-' + s.key, name: s.name, block: '', session: s.key,
-      phase: '', weeks: '', deloadWeek: '', derived: false, exercises: ex };
-  });
-  var prog = { id: pid, name: 'MAX Adaptive Split', method: 'Frequency-based rotation',
-    split: 'Upper / Lower / Push / Pull / Legs / Accessory', blocks: {}, periodized: false,
-    mode: 'adaptive', blueprint: { frequency: freq, sequences: JSON.parse(JSON.stringify(MAX_SEQUENCES)) },
-    routines: routines };
-  D.programs.push(prog);
-  setActiveProgram(prog.id);                // save it active with the chosen frequency
-}
 function openEditProgram(id) {
   var p = (D.programs || []).filter(function (x) { return x.id === id; })[0];
   if (!p) return;
@@ -1258,6 +1216,38 @@ function epAddDay() { editProg.routines.push({ id: 'd' + Date.now().toString(36)
 function epRemoveDay(di) { if (!confirm('Remove this day?')) return; editProg.routines.splice(di, 1); render(); }
 function epAddExercise(di) { editProg.routines[di].exercises.push({ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }); render(); }
 function epRemoveExercise(di, ei) { editProg.routines[di].exercises.splice(ei, 1); render(); }
+/* Options for the per-day "prefill from template" picker: the MAX plan sessions
+   plus any workouts the user saved as templates. */
+function epTemplateOptions() {
+  var o = '<option value="">Prefill from a template…</option><optgroup label="MAX sessions">';
+  MAX_SESSIONS.forEach(function (s) {
+    o += '<option value="max:' + s.key + '">' + esc(s.name) + ' (' + (MAX_PLAN[s.key] || []).length + ')</option>';
+  });
+  o += '</optgroup>';
+  var ut = D.templates || [];
+  if (ut.length) {
+    o += '<optgroup label="Your templates">';
+    ut.forEach(function (t) { o += '<option value="tpl:' + t.id + '">' + esc(t.name) + ' (' + (t.exercises || []).length + ')</option>'; });
+    o += '</optgroup>';
+  }
+  return o;
+}
+/* Fill a day's exercises from a chosen template. Replaces the day when it is still
+   empty, otherwise appends so nothing already typed is lost. */
+function epLoadTemplate(di, val) {
+  if (!val) return;
+  var src = [];
+  if (val.indexOf('max:') === 0) src = MAX_PLAN[val.slice(4)] || [];
+  else if (val.indexOf('tpl:') === 0) { var t = (D.templates || []).filter(function (x) { return x.id === val.slice(4); })[0]; src = t ? (t.exercises || []) : []; }
+  if (!src.length) return;
+  var copy = src.map(function (e) {
+    return { name: e.name, type: e.type || '', sets: e.sets || 3, reps: e.reps == null ? '' : e.reps, rpe: e.rpe == null ? '' : e.rpe, rest: e.rest == null ? 90 : e.rest };
+  });
+  var day = editProg.routines[di];
+  var hasContent = (day.exercises || []).some(function (e) { return (e.name || '').trim(); });
+  day.exercises = hasContent ? day.exercises.concat(copy) : copy;
+  render();
+}
 function saveProgramEdit() {
   if (!editProg.name || !editProg.name.trim()) { toast('Name the program'); return; }
   editProg.name = editProg.name.trim();
@@ -1322,6 +1312,7 @@ function progEditHtml() {
     h += '<input value="' + esc(r.block == null ? '' : r.block) + '" oninput="editProg.routines[' + di + '].block=this.value" placeholder="blk" inputmode="numeric" style="width:46px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px 4px;text-align:center">';
     h += '<button class="exbtn del" onclick="epRemoveDay(' + di + ')">✕</button>';
     h += '</div>';
+    h += '<select onchange="epLoadTemplate(' + di + ', this.value); this.value=\'\'" style="width:100%;margin-top:8px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;font-size:13px">' + epTemplateOptions() + '</select>';
     (r.exercises || []).forEach(function (e, ei) {
       h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">';
       h += '<div class="row" style="gap:8px"><input value="' + esc(e.name) + '" oninput="editProg.routines[' + di + '].exercises[' + ei + '].name=this.value" placeholder="Exercise name" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px">' +
@@ -1360,10 +1351,8 @@ function logMenuHtml() {
   h += '</div>';
   // Programs section: switch active / import / manage the library
   h += '<div class="card"><div class="row"><h2 style="margin:0">Programs</h2>' +
-    '<div style="display:flex;gap:8px">' +
-    '<button class="btn ghost sm" style="width:auto" onclick="newProgram()">+ New</button>' +
-    '<button class="btn ghost sm" style="width:auto" onclick="toggleImport()">' + (importOpen ? 'Cancel' : 'Import') + '</button></div></div>';
-  h += '<button class="btn" style="margin-top:12px" onclick="newAdaptiveProgram()">+ New adaptive split (MAX)</button>';
+    '<button class="btn ghost sm" style="width:auto" onclick="toggleImport()">' + (importOpen ? 'Cancel' : 'Import') + '</button></div>';
+  h += '<button class="btn" style="margin-top:12px" onclick="newProgram()">New Split</button>';
   if (importOpen) {
     h += '<textarea id="impText" placeholder="Paste program JSON…" spellcheck="false" autocapitalize="off" style="width:100%;height:140px;margin-top:10px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-family:monospace;font-size:12px"></textarea>';
     h += '<button class="btn sm" style="margin-top:8px;width:100%" onclick="doImport()">Add program</button>';
