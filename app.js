@@ -1010,9 +1010,13 @@ function programOverviewHtml() {
     h += '<div class="muted" style="font-size:11px;margin-top:10px">Add week ranges to blocks to show the timeline.</div>';
   } else if (prog.mode === 'adaptive' && prog.blueprint) {
     var af = parseInt(prog.blueprint.frequency, 10) || 5;
-    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + af + '-day rotation · adaptive split</div>';
+    var dw = parseInt(prog.durationWeeks, 10) || 0;
+    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + af + '-day rotation · adaptive split' + (dw ? ' · ' + dw + '-week plan' : '') + '</div>';
+    if (dw && isActive && pr) { var wa = Math.min(pr.week, dw); h += '<div class="muted" style="font-size:11px;margin-top:4px">Week ' + wa + ' of ' + dw + ' · ' + Math.round(wa / dw * 100) + '% through</div>'; }
   } else {
-    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + (prog.routines || []).length + ' training days · simple program</div>';
+    var dw2 = parseInt(prog.durationWeeks, 10) || 0;
+    h += '<div class="muted" style="font-size:12px;margin-top:10px">' + (prog.routines || []).length + ' training days · simple program' + (dw2 ? ' · ' + dw2 + '-week plan' : '') + '</div>';
+    if (dw2 && isActive && pr) { var wb = Math.min(pr.week, dw2); h += '<div class="muted" style="font-size:11px;margin-top:4px">Week ' + wb + ' of ' + dw2 + ' · ' + Math.round(wb / dw2 * 100) + '% through</div>'; }
   }
   h += '</div>';
   if (prog.mode === 'adaptive' && prog.blueprint) h += adaptivePanelHtml(prog, isActive);
@@ -1124,10 +1128,11 @@ function programsHtml() {
 /* ---------- Program editor (create new or edit in place) ---------- */
 /* Guided setup mirrors the MAX flow: pick a split (days/week) and rotation style,
    then build the days in the editor. */
-function newProgram() { nb = { name: '', days: 4, alt: false }; view = 'newbasic'; render(); window.scrollTo(0, 0); }
+function newProgram() { nb = { name: '', days: 4, alt: false, weeks: 8 }; view = 'newbasic'; render(); window.scrollTo(0, 0); }
 function cancelNewBasic() { view = 'log'; logMode = 'menu'; render(); window.scrollTo(0, 0); }
 function nbSetDays(n) { nb.days = n; render(); }
 function nbSetAlt(v) { nb.alt = !!v; render(); }
+function nbSetWeeks(w) { nb.weeks = w; render(); }
 function newBasicHtml() {
   var inS = 'width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px';
   var lbl = 'font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin:16px 2px 6px';
@@ -1152,6 +1157,12 @@ function newBasicHtml() {
       '<div style="font-weight:800;font-size:15px">' + o.t + '</div>' +
       '<div style="font-size:11.5px;font-weight:500;opacity:.8;margin-top:3px">' + o.sub + '</div></button>';
   });
+  h += '<label style="' + lbl + '">Length</label>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  [{ w: 0, t: 'Ongoing' }, { w: 4, t: '4 wks' }, { w: 6, t: '6 wks' }, { w: 8, t: '8 wks' }, { w: 10, t: '10 wks' }, { w: 12, t: '12 wks' }].forEach(function (o) {
+    h += '<button class="btn ' + (nb.weeks === o.w ? '' : 'ghost') + ' sm" style="flex:1;min-width:62px" onclick="nbSetWeeks(' + o.w + ')">' + o.t + '</button>';
+  });
+  h += '</div>';
   h += '<button class="btn" style="margin-top:18px" onclick="startBasicBuild()">Build days →</button>';
   h += '</div>';
   return h;
@@ -1178,7 +1189,7 @@ function startBasicBuild() {
   }
   epDayMode = {};
   editProgramId = pid;
-  editProg = { id: pid, name: (nb.name || '').trim(), method: '', split: '', blocks: {}, periodized: false, routines: routines };
+  editProg = { id: pid, name: (nb.name || '').trim(), method: '', split: '', blocks: {}, periodized: false, durationWeeks: parseInt(nb.weeks, 10) || 0, routines: routines };
   if (alt) {
     editProg.mode = 'adaptive';
     editProg.blueprint = { frequency: days, alt: true, sequences: {} };
@@ -1273,6 +1284,7 @@ function saveProgramEdit() {
   });
   editProg.split = (editProg.split && editProg.split.trim()) ? editProg.split.trim() : deriveSplit(editProg.routines);
   editProg.periodized = !!(editProg.blocks && Object.keys(editProg.blocks).length);
+  editProg.durationWeeks = editProg.periodized ? 0 : (parseInt(editProg.durationWeeks, 10) || 0);
   var idx = D.programs.map(function (p) { return p.id; }).indexOf(editProgramId);
   if (idx >= 0) D.programs[idx] = editProg; else D.programs.push(editProg);
   if (editProgramId === D.activeProgramId) applyActiveProgram();
@@ -1300,6 +1312,10 @@ function progEditHtml() {
   h += '<input value="' + esc(editProg.name) + '" oninput="editProg.name=this.value" style="' + inS + ';font-weight:700;margin-bottom:10px">';
   h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Method (optional)</label>';
   h += '<input value="' + esc(editProg.method || '') + '" oninput="editProg.method=this.value" placeholder="e.g. Double progression" style="' + inS + '">';
+  if (!Object.keys(editProg.blocks || {}).length) {
+    h += '<label class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;display:block;margin:10px 0 4px">Length in weeks (blank = ongoing)</label>';
+    h += '<input value="' + esc(editProg.durationWeeks ? editProg.durationWeeks : '') + '" oninput="editProg.durationWeeks=this.value" placeholder="e.g. 12" inputmode="numeric" style="' + inS + '">';
+  }
   if (editProg.periodized) h += '<div class="muted" style="font-size:11px;margin-top:8px">Periodized — the small "blk" box sets each day’s block number; edit the blocks themselves below.</div>';
   h += '</div>';
   // blocks (periodization) editor
