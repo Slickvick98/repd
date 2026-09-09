@@ -568,6 +568,7 @@ function viewHtml() {
   if (view === 'dash') return dashHtml();
   if (view === 'program') return programHtml();
   if (view === 'programs') return programsHtml();
+  if (view === 'newmax') return newMaxHtml();
   if (view === 'progEdit') return progEditHtml();
   if (view === 'workout') return workoutHtml();
   if (view === 'log') return logHtml();
@@ -1129,11 +1130,30 @@ function newProgram() {
 }
 /* Scaffold the MAX adaptive split: 6 sessions (empty exercises to fill later) + a
    frequency-based rotation blueprint. Added to the library and (optionally) set active. */
-function newAdaptiveProgram() {
-  var ans = prompt('MAX Adaptive Split — how many days per week will you train?\nEnter 3, 4, 5, or 6:', '5');
-  if (ans === null) return;                 // cancelled: don't create anything
-  var freq = parseInt(ans, 10);
-  if ([3, 4, 5, 6].indexOf(freq) === -1) { toast('Enter 3, 4, 5, or 6'); return; }
+/* Open the day-count picker (buttons) before building the MAX program. */
+function newAdaptiveProgram() { view = 'newmax'; render(); window.scrollTo(0, 0); }
+/* Frequency picker screen: 3/4/5/6-day buttons that create + activate the program. */
+function newMaxHtml() {
+  var h = '<div class="card"><button class="btn ghost sm" onclick="cancelNewMax()" style="margin-bottom:12px">← Cancel</button>';
+  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">New adaptive split</div>';
+  h += '<div class="muted" style="font-size:12.5px;margin-top:4px">How many days per week will you train? You can change this later.</div>';
+  h += '<div style="margin-top:16px">';
+  [
+    { n: 3, sub: 'Upper / Lower / Push, alternating with Upper / Pull / Legs' },
+    { n: 4, sub: 'Upper / Lower / Push / Legs' },
+    { n: 5, sub: 'Upper / Lower / Push / Pull / Legs' },
+    { n: 6, sub: 'Upper / Lower / Push / Pull / Legs / Accessory' }
+  ].forEach(function (o) {
+    h += '<button class="btn" style="width:100%;text-align:left;margin-top:10px;height:auto;padding:14px" onclick="createAdaptiveProgram(' + o.n + ')">' +
+      '<div style="font-weight:800;font-size:16px">' + o.n + ' days / week</div>' +
+      '<div style="font-size:11.5px;font-weight:500;opacity:.8;margin-top:3px">' + o.sub + '</div></button>';
+  });
+  h += '</div></div>';
+  return h;
+}
+function cancelNewMax() { view = 'log'; logMode = 'menu'; render(); window.scrollTo(0, 0); }
+function createAdaptiveProgram(freq) {
+  if ([3, 4, 5, 6].indexOf(freq) === -1) freq = 5;
   var pid = 'pg' + Date.now().toString(36);
   var routines = MAX_SESSIONS.map(function (s) {
     var ex = (MAX_PLAN[s.key] || []).map(function (e) {
