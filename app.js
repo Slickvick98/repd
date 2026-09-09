@@ -619,7 +619,6 @@ var MAX_PLAN = {
     { name: 'Barbell Row', type: 'strength', sets: 4, reps: '8-10', rpe: '7', rest: 90 },
     { name: 'Seated DB Shoulder Press', type: 'strength', sets: 3, reps: '8-10', rpe: '7-8', rest: 90 },
     { name: 'Lat Pulldown', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 75 },
-    { name: 'Lateral Raises', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
     { name: 'DB Curls', type: 'strength', sets: 3, reps: '8-10', rpe: '8', rest: 60 },
     { name: 'Incline Treadmill Walk', type: 'cardio', sets: 1, reps: '15-20 min', rpe: '', rest: 0 }
   ],
@@ -628,14 +627,12 @@ var MAX_PLAN = {
     { name: 'Romanian Deadlift', type: 'strength', sets: 3, reps: '8-10', rpe: '7-8', rest: 120 },
     { name: 'Walking Lunges', type: 'strength', sets: 3, reps: '10-12', rpe: '7-8', rest: 90 },
     { name: 'Hanging Leg Raises', type: 'core', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
-    { name: 'Pallof Press', type: 'core', sets: 3, reps: '12/side', rpe: '8', rest: 45 },
-    { name: 'GHD Sit-ups', type: 'core', sets: 3, reps: '15-20', rpe: '8', rest: 60 }
+    { name: 'Pallof Press', type: 'core', sets: 3, reps: '12/side', rpe: '8', rest: 45 }
   ],
   push: [
     { name: 'Incline DB Bench Press', type: 'strength', sets: 4, reps: '8-10', rpe: '7-8', rest: 90 },
     { name: 'Standing Barbell OHP', type: 'strength', sets: 3, reps: '8-10', rpe: '7-8', rest: 90 },
     { name: 'Cable Chest Flys', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
-    { name: 'Rear Delt Flys', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
     { name: 'Skull Crushers', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 60 },
     { name: 'Incline Treadmill Walk', type: 'cardio', sets: 1, reps: '15-20 min', rpe: '', rest: 0 }
   ],
@@ -650,8 +647,6 @@ var MAX_PLAN = {
     { name: 'Hack Squat', type: 'strength', sets: 4, reps: '8-10', rpe: '7-8', rest: 120 },
     { name: 'Bulgarian Split Squat', type: 'strength', sets: 3, reps: '8-12/leg', rpe: '8', rest: 90 },
     { name: 'Hamstring Curls', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 60 },
-    { name: 'Leg Extensions', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
-    { name: 'Cable Crunch', type: 'core', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
     { name: 'Plank', type: 'core', sets: 3, reps: '45-60s', rpe: '8', rest: 45 }
   ],
   accessory: [
