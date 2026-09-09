@@ -569,6 +569,7 @@ function viewHtml() {
   if (view === 'program') return programHtml();
   if (view === 'programs') return programsHtml();
   if (view === 'newmax') return newMaxHtml();
+  if (view === 'newbasic') return newBasicHtml();
   if (view === 'progEdit') return progEditHtml();
   if (view === 'workout') return workoutHtml();
   if (view === 'log') return logHtml();
@@ -732,6 +733,7 @@ function nextWorkoutCard() {
   return h;
 }
 function nextWorkoutName() { var r = nextRoutine(); return r ? r.name : null; }
+function startNextRoutine() { var r = nextRoutine(); if (r) startWorkout(r.id); else go('dash'); }
 function programTotalWeeks() {
   var b = D.program && D.program.blocks; if (!b) return 0;
   var max = 0;
@@ -885,6 +887,7 @@ function workoutHtml() {
 var programBlock = null, programDay = null, importOpen = false;
 var editProg = null, editProgramId = null;
 var viewProgramId = null, programBackTo = 'dash';   // explorer: which program + where Back returns
+var nb = { name: '', days: 4, alt: false };         // guided "new program" setup state
 var BLOCK_GOALS = {
   '1': { goal: 'Build the muscle base — moderate loads and higher reps. Add reps week to week, then add weight (double progression).', scheme: 'Compounds 8–10 · Isolation 12–15 · RPE 7–8' },
   '2': { goal: 'Bridge hypertrophy into strength — heavier compounds while keeping solid volume on isolation work.', scheme: 'Compounds 6–8 · Isolation 8–12 · RPE 8' },
@@ -960,12 +963,13 @@ function adaptivePanelHtml(prog, isActive) {
   var freq = parseInt(bp.frequency, 10) || 5;
   var seq = (bp.sequences && bp.sequences[String(freq)]) || MAX_SEQUENCES[String(freq)] || MAX_SEQUENCES['5'];
   var pos = isActive ? adaptivePosition() : -1;
+  var alt = seq.length === freq * 2;   // two week-templates (A/B) alternating
   var h = '<div class="card">';
   h += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Rotation order · ' + freq + '-day' +
-    (freq === 3 ? ' · A / B alternating' : '') + '</div>';
+    (alt ? ' · A / B alternating' : '') + '</div>';
   seq.forEach(function (key, i) {
     var cur = isActive && i === pos;
-    var half = freq === 3 ? (i < 3 ? 'A' : 'B') : '';
+    var half = alt ? (i < freq ? 'A' : 'B') : '';
     h += '<div class="row" style="align-items:center;gap:10px;padding:9px 0' + (i ? ';border-top:1px solid var(--line)' : '') + '">' +
       '<div class="mono" style="width:20px;color:var(--muted);font-size:12px">' + (i + 1) + '</div>' +
       '<div style="flex:1;font-weight:' + (cur ? '800' : '700') + (cur ? ';color:var(--accent)' : '') + '">' + esc(sessionName(prog, key)) + '</div>' +
@@ -1030,6 +1034,13 @@ function programOverviewHtml() {
   } else {
     h += '<div style="margin:14px 2px 10px"><h2 style="font-size:15px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0">Training days</h2></div>';
     (prog.routines || []).forEach(function (r) { h += progDayCard(r); });
+  }
+  if (isActive) {
+    var nx = nextRoutine();
+    h += '<div class="card" style="margin-top:14px">';
+    if (nx) h += '<button class="btn" onclick="startNextRoutine()">Start ' + esc(nx.name) + ' →</button>';
+    h += '<button class="btn ghost" style="margin-top:8px" onclick="go(\'dash\')">Done</button>';
+    h += '</div>';
   }
   h += '<div style="height:16px"></div>';
   return h;
@@ -1112,10 +1123,67 @@ function programsHtml() {
 }
 
 /* ---------- Program editor (create new or edit in place) ---------- */
-function newProgram() {
-  editProgramId = 'pg' + Date.now().toString(36);   // not in D.programs yet; saveProgramEdit pushes it
-  editProg = { id: editProgramId, name: '', method: '', split: '', blocks: {}, periodized: false,
-    routines: [{ id: 'd0', name: 'Day 1', block: '', exercises: [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }] }] };
+/* Guided setup mirrors the MAX flow: pick a split (days/week) and rotation style,
+   then build the days in the editor. */
+function newProgram() { nb = { name: '', days: 4, alt: false }; view = 'newbasic'; render(); window.scrollTo(0, 0); }
+function cancelNewBasic() { view = 'log'; logMode = 'menu'; render(); window.scrollTo(0, 0); }
+function nbSetDays(n) { nb.days = n; render(); }
+function nbSetAlt(v) { nb.alt = !!v; render(); }
+function newBasicHtml() {
+  var inS = 'width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px';
+  var lbl = 'font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin:16px 2px 6px';
+  var h = '<div class="card"><button class="btn ghost sm" onclick="cancelNewBasic()" style="margin-bottom:12px">← Cancel</button>';
+  h += '<div style="font-family:\'Archivo Expanded\',Archivo,sans-serif;font-weight:800;font-size:22px">New program</div>';
+  h += '<div class="muted" style="font-size:12.5px;margin-top:4px">Pick your split, then build the days.</div>';
+  h += '<label style="' + lbl + '">Program name</label>';
+  h += '<input id="nbName" value="' + esc(nb.name) + '" oninput="nb.name=this.value" placeholder="e.g. Push Pull Legs" style="' + inS + ';font-weight:700">';
+  h += '<label style="' + lbl + '">Days per week</label>';
+  h += '<div style="display:flex;gap:8px">';
+  [2, 3, 4, 5, 6].forEach(function (n) {
+    h += '<button class="btn ' + (nb.days === n ? '' : 'ghost') + ' sm" style="flex:1" onclick="nbSetDays(' + n + ')">' + n + '</button>';
+  });
+  h += '</div>';
+  h += '<label style="' + lbl + '">Rotation</label>';
+  [
+    { v: false, t: 'Fixed weekly', sub: 'The same ' + nb.days + ' days every week, in order.' },
+    { v: true, t: 'A / B alternating', sub: 'Two rotations (A then B) that swap each week, so ' + (nb.days * 2) + ' days total.' }
+  ].forEach(function (o) {
+    var on = nb.alt === o.v;
+    h += '<button class="btn ' + (on ? '' : 'ghost') + '" style="width:100%;text-align:left;margin-top:8px;height:auto;padding:13px" onclick="nbSetAlt(' + o.v + ')">' +
+      '<div style="font-weight:800;font-size:15px">' + o.t + '</div>' +
+      '<div style="font-size:11.5px;font-weight:500;opacity:.8;margin-top:3px">' + o.sub + '</div></button>';
+  });
+  h += '<button class="btn" style="margin-top:18px" onclick="startBasicBuild()">Build days →</button>';
+  h += '</div>';
+  return h;
+}
+/* Scaffold the chosen structure (empty days) and open the editor to fill exercises. */
+function startBasicBuild() {
+  var days = nb.days, alt = !!nb.alt;
+  var pid = 'pg' + Date.now().toString(36);   // fresh id → saveProgramEdit treats it as new and pushes it
+  var newDay = function (id, name, session) {
+    var d = { id: id, name: name, block: '', exercises: [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }] };
+    if (session) d.session = session;
+    return d;
+  };
+  var routines = [];
+  if (alt) {
+    ['A', 'B'].forEach(function (half) {
+      for (var i = 1; i <= days; i++) {
+        var key = half.toLowerCase() + i;
+        routines.push(newDay(pid + '-' + key, half + ' · Day ' + i, key));
+      }
+    });
+  } else {
+    for (var i = 1; i <= days; i++) routines.push(newDay(pid + '-d' + i, 'Day ' + i));
+  }
+  editProgramId = pid;
+  editProg = { id: pid, name: (nb.name || '').trim(), method: '', split: '', blocks: {}, periodized: false, routines: routines };
+  if (alt) {
+    editProg.mode = 'adaptive';
+    editProg.blueprint = { frequency: days, alt: true, sequences: {} };
+    editProg.blueprint.sequences[String(days)] = routines.map(function (r) { return r.session; });
+  }
   view = 'progEdit'; render(); window.scrollTo(0, 0);
 }
 /* Scaffold the MAX adaptive split: 6 sessions (empty exercises to fill later) + a
