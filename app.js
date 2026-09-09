@@ -1176,6 +1176,7 @@ function startBasicBuild() {
   } else {
     for (var i = 1; i <= days; i++) routines.push(newDay(pid + '-d' + i, 'Day ' + i));
   }
+  epDayMode = {};
   editProgramId = pid;
   editProg = { id: pid, name: (nb.name || '').trim(), method: '', split: '', blocks: {}, periodized: false, routines: routines };
   if (alt) {
@@ -1188,6 +1189,7 @@ function startBasicBuild() {
 function openEditProgram(id) {
   var p = (D.programs || []).filter(function (x) { return x.id === id; })[0];
   if (!p) return;
+  epDayMode = {};
   editProgramId = id;
   editProg = JSON.parse(JSON.stringify(p));
   if (!editProg.routines) editProg.routines = [];
@@ -1216,6 +1218,15 @@ function epAddDay() { editProg.routines.push({ id: 'd' + Date.now().toString(36)
 function epRemoveDay(di) { if (!confirm('Remove this day?')) return; editProg.routines.splice(di, 1); render(); }
 function epAddExercise(di) { editProg.routines[di].exercises.push({ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }); render(); }
 function epRemoveExercise(di, ei) { editProg.routines[di].exercises.splice(ei, 1); render(); }
+/* Which builder days have been opened, and how: id -> 'template' | 'custom'. Reset
+   each time the editor opens so every day starts on the two-button chooser. */
+var epDayMode = {};
+function epDayChoose(id, mode) {
+  epDayMode[id] = mode;
+  var r = (editProg.routines || []).filter(function (x) { return x.id === id; })[0];
+  if (mode === 'custom' && r && !(r.exercises || []).length) r.exercises = [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }];
+  render();
+}
 /* Options for the per-day "prefill from template" picker: the MAX plan sessions
    plus any workouts the user saved as templates. */
 function epTemplateOptions() {
@@ -1312,20 +1323,34 @@ function progEditHtml() {
     h += '<input value="' + esc(r.block == null ? '' : r.block) + '" oninput="editProg.routines[' + di + '].block=this.value" placeholder="blk" inputmode="numeric" style="width:46px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px 4px;text-align:center">';
     h += '<button class="exbtn del" onclick="epRemoveDay(' + di + ')">✕</button>';
     h += '</div>';
-    h += '<select onchange="epLoadTemplate(' + di + ', this.value); this.value=\'\'" style="width:100%;margin-top:8px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;font-size:13px">' + epTemplateOptions() + '</select>';
-    (r.exercises || []).forEach(function (e, ei) {
-      h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">';
-      h += '<div class="row" style="gap:8px"><input value="' + esc(e.name) + '" oninput="editProg.routines[' + di + '].exercises[' + ei + '].name=this.value" placeholder="Exercise name" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px">' +
-        '<button class="exbtn del" onclick="epRemoveExercise(' + di + ',' + ei + ')">✕</button></div>';
-      h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:6px">' +
-        epInput(di, ei, 'sets', e.sets, 'sets', true) +
-        epInput(di, ei, 'reps', e.reps, 'reps', false) +
-        epInput(di, ei, 'rpe', e.rpe, 'rpe', false) +
-        epInput(di, ei, 'rest', e.rest, 'rest s', true) +
+    var hasContent = (r.exercises || []).some(function (e) { return (e.name || '').trim(); });
+    var mode = epDayMode[r.id] || (hasContent ? 'custom' : '');
+    if (!mode) {
+      // Initial simplified state: pick how to fill this day before showing any fields.
+      h += '<div class="row" style="gap:8px;margin-top:12px">' +
+        '<button class="btn ghost sm" style="flex:1" onclick="epDayChoose(\'' + r.id + '\',\'template\')">From template</button>' +
+        '<button class="btn ghost sm" style="flex:1" onclick="epDayChoose(\'' + r.id + '\',\'custom\')">Custom</button>' +
         '</div>';
-      h += '</div>';
-    });
-    h += '<button class="btn ghost sm" style="margin-top:12px" onclick="epAddExercise(' + di + ')">+ exercise</button>';
+    } else {
+      h += '<select onchange="epLoadTemplate(' + di + ', this.value); this.value=\'\'" style="width:100%;margin-top:8px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;font-size:13px">' + epTemplateOptions() + '</select>';
+      if (hasContent || mode === 'custom') {
+        (r.exercises || []).forEach(function (e, ei) {
+          h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">';
+          h += '<div class="row" style="gap:8px"><input value="' + esc(e.name) + '" oninput="editProg.routines[' + di + '].exercises[' + ei + '].name=this.value" placeholder="Exercise name" style="flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px">' +
+            '<button class="exbtn del" onclick="epRemoveExercise(' + di + ',' + ei + ')">✕</button></div>';
+          h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:6px">' +
+            epInput(di, ei, 'sets', e.sets, 'sets', true) +
+            epInput(di, ei, 'reps', e.reps, 'reps', false) +
+            epInput(di, ei, 'rpe', e.rpe, 'rpe', false) +
+            epInput(di, ei, 'rest', e.rest, 'rest s', true) +
+            '</div>';
+          h += '</div>';
+        });
+        h += '<button class="btn ghost sm" style="margin-top:12px" onclick="epAddExercise(' + di + ')">+ exercise</button>';
+      } else {
+        h += '<div class="muted" style="font-size:11.5px;margin-top:8px">Pick a template above to fill this day.</div>';
+      }
+    }
     h += '</div>';
   });
   h += '<button class="btn ghost" onclick="epAddDay()" style="margin-bottom:12px">+ Add day</button>';
