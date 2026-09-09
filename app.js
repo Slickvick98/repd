@@ -619,9 +619,7 @@ var MAX_PLAN = {
     { name: 'Seated DB Shoulder Press', type: 'strength', sets: 3, reps: '8-10', rpe: '7-8', rest: 90 },
     { name: 'Lat Pulldown', type: 'strength', sets: 3, reps: '10-12', rpe: '8', rest: 75 },
     { name: 'Lateral Raises', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
-    { name: 'Rear Delt Flys', type: 'strength', sets: 3, reps: '12-15', rpe: '8', rest: 60 },
     { name: 'DB Curls', type: 'strength', sets: 3, reps: '8-10', rpe: '8', rest: 60 },
-    { name: 'Hammer Curls', type: 'strength', sets: 2, reps: '10-12', rpe: '8', rest: 60 },
     { name: 'Incline Treadmill Walk', type: 'cardio', sets: 1, reps: '15-20 min', rpe: '', rest: 0 }
   ],
   lower: [
