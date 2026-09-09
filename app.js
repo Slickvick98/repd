@@ -1295,6 +1295,7 @@ function logMenuHtml() {
     '<div style="display:flex;gap:8px">' +
     '<button class="btn ghost sm" style="width:auto" onclick="newProgram()">+ New</button>' +
     '<button class="btn ghost sm" style="width:auto" onclick="toggleImport()">' + (importOpen ? 'Cancel' : 'Import') + '</button></div></div>';
+  h += '<button class="btn" style="margin-top:12px" onclick="newAdaptiveProgram()">+ New adaptive split (MAX)</button>';
   if (importOpen) {
     h += '<textarea id="impText" placeholder="Paste program JSON…" spellcheck="false" autocapitalize="off" style="width:100%;height:140px;margin-top:10px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:12px;font-family:monospace;font-size:12px"></textarea>';
     h += '<button class="btn sm" style="margin-top:8px;width:100%" onclick="doImport()">Add program</button>';
