@@ -1227,6 +1227,8 @@ function epDayChoose(id, mode) {
   if (mode === 'custom' && r && !(r.exercises || []).length) r.exercises = [{ name: '', type: '', sets: 3, reps: '', rpe: '', rest: 90 }];
   render();
 }
+/* Return an unfilled day to the From template / Custom chooser so the choice can be switched. */
+function epDayBack(id) { delete epDayMode[id]; render(); }
 /* Options for the per-day "prefill from template" picker: the MAX plan sessions
    plus any workouts the user saved as templates. */
 function epTemplateOptions() {
@@ -1332,6 +1334,7 @@ function progEditHtml() {
         '<button class="btn ghost sm" style="flex:1" onclick="epDayChoose(\'' + r.id + '\',\'custom\')">Custom</button>' +
         '</div>';
     } else {
+      if (epDayMode[r.id] && !hasContent) h += '<button class="btn ghost sm" style="width:auto;margin-top:10px" onclick="epDayBack(\'' + r.id + '\')">← Back</button>';
       h += '<select onchange="epLoadTemplate(' + di + ', this.value); this.value=\'\'" style="width:100%;margin-top:8px;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px;font-size:13px">' + epTemplateOptions() + '</select>';
       if (hasContent || mode === 'custom') {
         (r.exercises || []).forEach(function (e, ei) {
