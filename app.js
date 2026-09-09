@@ -1130,6 +1130,10 @@ function newProgram() {
 /* Scaffold the MAX adaptive split: 6 sessions (empty exercises to fill later) + a
    frequency-based rotation blueprint. Added to the library and (optionally) set active. */
 function newAdaptiveProgram() {
+  var ans = prompt('MAX Adaptive Split — how many days per week will you train?\nEnter 3, 4, 5, or 6:', '5');
+  if (ans === null) return;                 // cancelled: don't create anything
+  var freq = parseInt(ans, 10);
+  if ([3, 4, 5, 6].indexOf(freq) === -1) { toast('Enter 3, 4, 5, or 6'); return; }
   var pid = 'pg' + Date.now().toString(36);
   var routines = MAX_SESSIONS.map(function (s) {
     var ex = (MAX_PLAN[s.key] || []).map(function (e) {
@@ -1140,14 +1144,10 @@ function newAdaptiveProgram() {
   });
   var prog = { id: pid, name: 'MAX Adaptive Split', method: 'Frequency-based rotation',
     split: 'Upper / Lower / Push / Pull / Legs / Accessory', blocks: {}, periodized: false,
-    mode: 'adaptive', blueprint: { frequency: 5, sequences: JSON.parse(JSON.stringify(MAX_SEQUENCES)) },
+    mode: 'adaptive', blueprint: { frequency: freq, sequences: JSON.parse(JSON.stringify(MAX_SEQUENCES)) },
     routines: routines };
   D.programs.push(prog);
-  if (confirm('Created “MAX Adaptive Split” with your chosen lifts. Set it active now?')) {
-    setActiveProgram(prog.id);
-  } else {
-    render(); toast('Adaptive split added'); syncDataJson('add program: ' + prog.name);
-  }
+  setActiveProgram(prog.id);                // save it active with the chosen frequency
 }
 function setAdaptiveFrequency(n) {
   var p = activeProgram();
